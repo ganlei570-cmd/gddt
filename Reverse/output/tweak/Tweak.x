@@ -8,6 +8,7 @@
 #import "profile.h"
 #import "bypass.h"
 #import "spoof.h"
+#import "clean.h"
 
 // ── UIKit hooks（UIKit 必定已加载，无需 %group）────────────────
 %hook UIDevice
@@ -34,11 +35,16 @@
 // → dlopen AdSupport → %init(GAdSupport)
 %ctor {
     @autoreleasepool {
-        loadProfile();
-        installBypassHooks();
-        installSpoofHooks();
-        %init;
-        dlopen("/System/Library/Frameworks/AdSupport.framework/AdSupport", RTLD_NOW);
-        %init(GAdSupport);
+        NSString *bid = [[NSBundle mainBundle] bundleIdentifier];
+        if ([bid isEqualToString:@"com.autonavi.amap"]) {
+            loadProfile();
+            installBypassHooks();
+            installSpoofHooks();
+            %init;
+            dlopen("/System/Library/Frameworks/AdSupport.framework/AdSupport", RTLD_NOW);
+            %init(GAdSupport);
+        } else if ([bid isEqualToString:@"com.amap.newmachine"]) {
+            initCleanHooks();
+        }
     }
 }

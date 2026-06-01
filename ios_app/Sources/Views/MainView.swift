@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct MainView: View {
     @EnvironmentObject var authState: AuthState
@@ -109,9 +110,9 @@ struct MainView: View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
                   spacing: 8) {
             ActionBtn("一键新机",    enabled: true)  { doNewMachine() }
-            ActionBtn("清理Safari",  enabled: false) { }
+            ActionBtn("清理Safari",  enabled: true)  { doClearSafari() }
             ActionBtn("备份记录",    enabled: true)  { restoreMode = false; showBackup = true }
-            ActionBtn("清理剪贴板",  enabled: false) { }
+            ActionBtn("清理剪贴板",  enabled: true)  { doClearClipboard() }
             ActionBtn("清理Keychain",enabled: true)  { doClearKeychain() }
             ActionBtn("还原机器",    enabled: true)  { restoreMode = true; showBackup = true }
         }
@@ -147,6 +148,19 @@ struct MainView: View {
         } catch {
             showToast("失败: \(error.localizedDescription)")
         }
+    }
+
+    private func doClearSafari() {
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName("com.amap.newmachine.clearSafari" as CFString),
+            nil, nil, true)
+        showToast("Safari 已清理\n请重启 Safari")
+    }
+
+    private func doClearClipboard() {
+        UIPasteboard.general.items = []
+        showToast("剪贴板已清理")
     }
 
     private func showToast(_ msg: String) {

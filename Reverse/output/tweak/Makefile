@@ -7,7 +7,7 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = AmapNewDevice
 
-AmapNewDevice_FILES        = Tweak.x bypass.mm spoof.mm profile.mm
+AmapNewDevice_FILES        = Tweak.x bypass.mm spoof.mm profile.mm clean.mm
 AmapNewDevice_CFLAGS       = -fobjc-arc
 AmapNewDevice_FRAMEWORKS   = UIKit Foundation Security CoreFoundation AdSupport
 AmapNewDevice_LIBRARIES    = substrate

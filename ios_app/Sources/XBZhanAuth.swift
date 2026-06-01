@@ -97,8 +97,10 @@ final class XBZhanAuth: ObservableObject {
             return (try? JSONSerialization.jsonObject(with: decData) as? [String: Any]) ?? [:]
         } catch {
             let ns = error as NSError
-            let detail = "code=\(ns.code) domain=\(ns.domain)\n\(ns.userInfo)"
-            return ["code": -1, "msg": "网络错误:\n\(detail)"]
+            let detail = "code=\(ns.code) domain=\(ns.domain) userInfo=\(ns.userInfo)"
+            let logPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0] + "/net_error.txt"
+            try? detail.write(toFile: logPath, atomically: true, encoding: .utf8)
+            return ["code": -1, "msg": "网络错误: code=\(ns.code)"]
         }
     }
 

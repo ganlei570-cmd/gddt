@@ -7,8 +7,8 @@
 #import "spoof.h"
 
 static NSString *kcQueryKey(CFDictionaryRef q) {
-    CFStringRef svc = CFDictionaryGetValue(q, kSecAttrService);
-    CFStringRef acc = CFDictionaryGetValue(q, kSecAttrAccount);
+    CFStringRef svc = (CFStringRef)CFDictionaryGetValue(q, kSecAttrService);
+    CFStringRef acc = (CFStringRef)CFDictionaryGetValue(q, kSecAttrAccount);
     if (!svc || !acc) return nil;
     return [(__bridge NSString *)svc stringByAppendingFormat:@"/%@", (__bridge NSString *)acc];
 }

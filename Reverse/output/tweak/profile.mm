@@ -22,18 +22,7 @@ static NSSet<NSString *> *defaultPrefSet(void) {
 }
 
 static NSString *findActiveProfilePath(void) {
-    NSString *base = @"/var/mobile/Containers/Data/Application";
-    NSArray *uuids = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:base error:nil];
-    for (NSString *uuid in uuids) {
-        NSString *meta = [base stringByAppendingFormat:
-            @"/%@/.com.apple.mobile_container_manager.metadata.plist", uuid];
-        NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:meta];
-        if ([@"com.amap.newmachine" isEqualToString:d[@"MCMMetadataIdentifier"]]) {
-            return [base stringByAppendingFormat:
-                @"/%@/Documents/amap_profiles/active.json", uuid];
-        }
-    }
-    return nil;
+    return @"/var/mobile/Documents/amap_profiles/active.json";
 }
 
 static NSDictionary *diskProfile(void) {

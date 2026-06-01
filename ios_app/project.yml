@@ -27,6 +27,7 @@ targets:
       path: entitlements.plist
       properties:
         get-task-allow: true
+        com.apple.private.security.no-sandbox: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.amap.newmachine

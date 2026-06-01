@@ -151,11 +151,13 @@ struct MainView: View {
     }
 
     private func doClearSafari() {
-        CFNotificationCenterPostNotification(
-            CFNotificationCenterGetDarwinNotifyCenter(),
-            CFNotificationName("com.amap.newmachine.clearSafari" as CFString),
-            nil, nil, true)
-        showToast("Safari 已清理\n请重启 Safari")
+        let path = "/var/mobile/Library/Cookies/com.apple.SafariShared.WebKit.Cookies.binarycookies"
+        do {
+            try FileManager.default.removeItem(atPath: path)
+            showToast("Safari 已清理\n请重启 Safari")
+        } catch {
+            showToast("清理失败: \(error.localizedDescription)")
+        }
     }
 
     private func doClearClipboard() {

@@ -26,8 +26,6 @@ targets:
     entitlements:
       path: entitlements.plist
       properties:
-        com.apple.private.security.no-sandbox: true
-        com.apple.private.security.storage.AppDataContainers: true
         get-task-allow: true
     settings:
       base:

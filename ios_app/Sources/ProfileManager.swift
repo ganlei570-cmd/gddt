@@ -1,7 +1,10 @@
 import Foundation
 
-private let PROFILE_DIR  = "/var/mobile/Documents/amap_profiles"
-private let ACTIVE_PATH  = "/var/mobile/Documents/amap_profiles/active.json"
+private let PROFILE_DIR: String = {
+    let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+    return docs + "/amap_profiles"
+}()
+private let ACTIVE_PATH: String = PROFILE_DIR + "/active.json"
 private let KC_KEYS = [
     "com.autonavi.amap/udid", "com.autonavi.amap/vimsi", "com.autonavi.amap/vimei",
     "com.autonavi.amap/tid", "com.autonavi.amap/public_key", "gd_amap/gd_amap",

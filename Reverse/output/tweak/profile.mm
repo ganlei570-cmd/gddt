@@ -21,8 +21,25 @@ static NSSet<NSString *> *defaultPrefSet(void) {
         @"login_credit", @"ATAuthSDK_POP_com.autonavi.amap", nil];
 }
 
+static NSString *findActiveProfilePath(void) {
+    NSString *base = @"/var/mobile/Containers/Data/Application";
+    NSArray *uuids = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:base error:nil];
+    for (NSString *uuid in uuids) {
+        NSString *meta = [base stringByAppendingFormat:
+            @"/%@/.com.apple.mobile_container_manager.metadata.plist", uuid];
+        NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:meta];
+        if ([@"com.amap.newmachine" isEqualToString:d[@"MCMMetadataIdentifier"]]) {
+            return [base stringByAppendingFormat:
+                @"/%@/Documents/amap_profiles/active.json", uuid];
+        }
+    }
+    return nil;
+}
+
 static NSDictionary *diskProfile(void) {
-    NSData *d = [NSData dataWithContentsOfFile:@"/var/mobile/Documents/amap_profiles/active.json"];
+    NSString *path = findActiveProfilePath();
+    if (!path) return nil;
+    NSData *d = [NSData dataWithContentsOfFile:path];
     if (!d) return nil;
     return [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
 }

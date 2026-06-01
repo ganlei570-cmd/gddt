@@ -46,7 +46,7 @@ final class XBZhanAuth: ObservableObject {
     // MARK: - Device fingerprint
     private func buildBase() -> [String: Any] {
         let hostname = ProcessInfo.processInfo.hostName
-        let mac = hostname + UIDevice.current.identifierForVendor!.uuidString
+        let mac = hostname + (UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString)
         let macHash = String(md5(mac).prefix(12)).uppercased()
         let featureHash = String(md5(mac + UIDevice.current.systemVersion).prefix(16)).uppercased()
         let clientid = String(md5(mac).prefix(18)).uppercased()
@@ -77,7 +77,7 @@ final class XBZhanAuth: ObservableObject {
               let url = URL(string: API_BASE + path) else {
             return ["code": -1, "msg": "构建请求失败"]
         }
-        var req = URLRequest(url: url, timeoutInterval: 10)
+        var req = URLRequest(url: url, timeoutInterval: 30)
         req.httpMethod = "POST"
         req.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         req.httpBody = bodyData

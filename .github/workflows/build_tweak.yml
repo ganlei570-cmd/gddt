@@ -19,9 +19,9 @@ jobs:
       - name: Setup Theos
         run: |
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          curl -fsSL https://github.com/theos/sdks/releases/download/iOS16.5/iPhoneOS16.5.sdk.tar.xz -o sdk.tar.xz
-          tar -xf sdk.tar.xz -C $THEOS/sdks
-          rm sdk.tar.xz
+          mkdir -p $THEOS/sdks
+          XCODE_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          ln -sf $XCODE_SDK $THEOS/sdks/iPhoneOS16.5.sdk
 
       - name: Build .deb
         run: make -C Reverse/output/tweak package FINALPACKAGE=1

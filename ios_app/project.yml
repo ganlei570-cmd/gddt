@@ -1,0 +1,30 @@
+name: AmapNewMachine
+options:
+  bundleIdPrefix: com.amap.newmachine
+  deploymentTarget:
+    iOS: "15.0"
+  xcodeVersion: "15"
+
+targets:
+  AmapNewMachine:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources
+        type: group
+    info:
+      path: Info.plist
+    entitlements:
+      path: entitlements.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amap.newmachine
+        PRODUCT_NAME: 一键新机
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
+        IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_BITCODE: "NO"

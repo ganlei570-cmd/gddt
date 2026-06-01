@@ -45,28 +45,15 @@ static int hook_sysctl(int *mib, u_int nl, void *old, size_t *osz, void *n, size
     return r;
 }
 
-static kern_return_t (*orig_task_info)(task_t, task_flavor_t, integer_t *, mach_msg_type_number_t *);
-static kern_return_t hook_task_info(task_t t, task_flavor_t f, integer_t *o, mach_msg_type_number_t *c) {
-    return orig_task_info(t, f, o, c);
-}
-
-
 static uint32_t (*orig_dyld_count)(void);
 static const char *(*orig_dyld_name)(uint32_t);
 
 static uint32_t hook_dyld_count(void) {
-    uint32_t tot = orig_dyld_count(), n = 0;
-    for (uint32_t i = 0; i < tot; i++)
-        if (!isInjDylib(orig_dyld_name(i))) n++;
-    return n;
+    return orig_dyld_count();
 }
 static const char *hook_dyld_name(uint32_t idx) {
-    uint32_t tot = orig_dyld_count(), n = 0;
-    for (uint32_t i = 0; i < tot; i++) {
-        const char *nm = orig_dyld_name(i);
-        if (!isInjDylib(nm) && n++ == idx) return nm;
-    }
-    return "";
+    const char *nm = orig_dyld_name(idx);
+    return isInjDylib(nm) ? "/usr/lib/libz.1.dylib" : nm;
 }
 
 static int (*orig_connect)(int, const struct sockaddr *, socklen_t);
@@ -113,7 +100,6 @@ static int hook_sysctlbyname(const char *n, void *o, size_t *sz, void *ne, size_
 static void hookAntiDebug(void) {
     MH("ptrace",  hook_ptrace,  &orig_ptrace);
     MH("sysctl",  hook_sysctl,  &orig_sysctl);
-    MH("task_info", hook_task_info, &orig_task_info);
     MH("_dyld_image_count",   hook_dyld_count, &orig_dyld_count);
     MH("_dyld_get_image_name", hook_dyld_name,  &orig_dyld_name);
     MH("sysctlbyname", hook_sysctlbyname, &orig_sysctlbyname);

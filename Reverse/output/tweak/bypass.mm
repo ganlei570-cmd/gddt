@@ -106,11 +106,6 @@ static int hook_sysctlbyname(const char *n, void *o, size_t *sz, void *ne, size_
     return orig_sysctlbyname(n, o, sz, ne, nsz);
 }
 
-static int (*orig_kill)(pid_t, int);
-static int hook_kill(pid_t pid, int sig) {
-    if (pid == getpid() && (sig == SIGKILL || sig == SIGTERM)) return 0;
-    return orig_kill(pid, sig);
-}
 
 #define MH(sym, hook, orig) MSHookFunction(dlsym(RTLD_DEFAULT, sym), (void *)(hook), (void **)(orig))
 #define MHN(sym, hook)      MSHookFunction(dlsym(RTLD_DEFAULT, sym), (void *)(hook), NULL)
@@ -122,7 +117,6 @@ static void hookAntiDebug(void) {
     MH("_dyld_image_count",   hook_dyld_count, &orig_dyld_count);
     MH("_dyld_get_image_name", hook_dyld_name,  &orig_dyld_name);
     MH("sysctlbyname", hook_sysctlbyname, &orig_sysctlbyname);
-    MH("kill",   hook_kill, &orig_kill);
 }
 
 static void hookEnvDetect(void) {

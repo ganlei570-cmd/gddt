@@ -10,14 +10,18 @@ on:
 jobs:
   build-tweak:
     runs-on: macos-latest
+    env:
+      THEOS: ${{ github.workspace }}/theos
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Theos
-        uses: theos/theos-action@v2
-        with:
-          sdk-version: '16.5'
+        run: |
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          curl -fsSL https://github.com/theos/sdks/releases/download/iOS16.5/iPhoneOS16.5.sdk.tar.xz -o sdk.tar.xz
+          tar -xf sdk.tar.xz -C $THEOS/sdks
+          rm sdk.tar.xz
 
       - name: Build .deb
         run: make -C Reverse/output/tweak package FINALPACKAGE=1
@@ -60,10 +64,12 @@ jobs:
       - name: Package IPA
         run: |
           cd ios_app
-          APP_PATH=$(find build -name "AmapNewMachine.app" -not -path "*/intermediates/*" | head -1)
+          APP_PATH=$(find build/Build/Products -name "*.app" -not -path "*/Intermediates*" | head -1)
           echo "App path: $APP_PATH"
+          APP_NAME=$(basename "$APP_PATH" .app)
+          echo "App name: $APP_NAME"
           brew install ldid
-          ldid -Sentitlements.plist "$APP_PATH/AmapNewMachine"
+          ldid -Sentitlements.plist "$APP_PATH/$APP_NAME"
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -r AmapNewMachine.ipa Payload/

@@ -38,7 +38,7 @@
         NSString *bid = [[NSBundle mainBundle] bundleIdentifier];
         if ([bid isEqualToString:@"com.autonavi.amap"]) {
             loadProfile();
-            installBypassHooks();
+            // installBypassHooks(); // 临时禁用，排查崩溃来源
             installSpoofHooks();
             %init;
             dlopen("/System/Library/Frameworks/AdSupport.framework/AdSupport", RTLD_NOW);

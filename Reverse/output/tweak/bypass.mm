@@ -50,14 +50,6 @@ static kern_return_t hook_task_info(task_t t, task_flavor_t f, integer_t *o, mac
     return orig_task_info(t, f, o, c);
 }
 
-static kern_return_t (*orig_tgep)(task_t, exception_mask_t, exception_mask_array_t,
-                                   mach_msg_type_number_t *, exception_handler_array_t,
-                                   exception_behavior_array_t, exception_flavor_array_t);
-static kern_return_t hook_tgep(task_t t, exception_mask_t m, exception_mask_array_t ma,
-                                mach_msg_type_number_t *c, exception_handler_array_t ha,
-                                exception_behavior_array_t ba, exception_flavor_array_t fa) {
-    return orig_tgep(t, m, ma, c, ha, ba, fa);
-}
 
 static uint32_t (*orig_dyld_count)(void);
 static const char *(*orig_dyld_name)(uint32_t);
@@ -127,7 +119,6 @@ static void hookAntiDebug(void) {
     MH("ptrace",  hook_ptrace,  &orig_ptrace);
     MH("sysctl",  hook_sysctl,  &orig_sysctl);
     MH("task_info", hook_task_info, &orig_task_info);
-    MH("task_get_exception_ports", hook_tgep, &orig_tgep);
     MH("_dyld_image_count",   hook_dyld_count, &orig_dyld_count);
     MH("_dyld_get_image_name", hook_dyld_name,  &orig_dyld_name);
     MH("sysctlbyname", hook_sysctlbyname, &orig_sysctlbyname);

@@ -1,0 +1,9 @@
+Package: com.dev.amapnewdevice
+Name: AmapNewDevice
+Version: 1.0.0
+Architecture: iphoneos-arm64e
+Description: 高德地图 16.02.1 一键新机 — 设备指纹伪装 + 风控绕过
+Maintainer: Dev
+Author: Dev
+Section: Tweaks
+Depends: org.coolstar.ellekit

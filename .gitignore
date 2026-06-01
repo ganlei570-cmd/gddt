@@ -1,0 +1,21 @@
+# 编译产物
+Reverse/output/tweak/.theos/
+Reverse/output/tweak/obj/
+Reverse/output/tweak/packages/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 样本/抓包（不上传到 GitHub）
+Reverse/output/samples/
+Reverse/output/profiles/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# Claude 内部
+.claude/
+.spec-workflow/

@@ -1,0 +1,32 @@
+name: Build AmapNewDevice Tweak
+
+on:
+  push:
+    paths:
+      - 'Reverse/output/tweak/**'
+  workflow_dispatch:   # 手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Theos
+        uses: theos/theos-action@v2
+        with:
+          sdk-version: '16.5'
+
+      - name: Build .deb
+        run: |
+          cd Reverse/output/tweak
+          make package FINALPACKAGE=1
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AmapNewDevice-deb
+          path: Reverse/output/tweak/packages/*.deb
+          if-no-files-found: error

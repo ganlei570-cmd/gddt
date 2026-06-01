@@ -54,9 +54,10 @@ jobs:
             -scheme AmapNewMachine \
             -sdk iphoneos \
             -configuration Release \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGN_ENTITLEMENTS=entitlements.plist \
             ONLY_ACTIVE_ARCH=NO \
             -derivedDataPath build
         env:
@@ -69,8 +70,8 @@ jobs:
           echo "App path: $APP_PATH"
           APP_NAME=$(basename "$APP_PATH" .app)
           echo "App name: $APP_NAME"
-          brew install ldid
-          ldid -Sentitlements.plist "$APP_PATH/$APP_NAME"
+          # Verify entitlements in binary
+          codesign -d --entitlements - "$APP_PATH/$APP_NAME" 2>/dev/null || echo "no codesign"
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -r AmapNewMachine.ipa Payload/

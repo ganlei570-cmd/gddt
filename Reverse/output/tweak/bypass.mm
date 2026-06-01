@@ -89,7 +89,7 @@ static void *hook_dlopen(const char *p, int f) { return isInjDylib(p) ? NULL : o
 
 static int (*orig_sysctlbyname)(const char *, void *, size_t *, void *, size_t);
 static int hook_sysctlbyname(const char *n, void *o, size_t *sz, void *ne, size_t nsz) {
-    if (n && strstr(n, "proc")) return -1;
+    if (n && strstr(n, "kern.proc.pid")) return -1;
     return orig_sysctlbyname(n, o, sz, ne, nsz);
 }
 

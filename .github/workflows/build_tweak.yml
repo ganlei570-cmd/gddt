@@ -72,10 +72,13 @@ jobs:
           BINARY="$APP_PATH/$APP_NAME"
           echo "Binary: $BINARY"
           brew install ldid
+          echo "=== entitlements.plist content ==="
+          cat entitlements.plist
+          echo "=== end ==="
           # Remove existing empty signature so ldid can sign cleanly
           codesign --remove-signature "$BINARY" 2>/dev/null || true
           echo "Signing with ldid..."
-          ldid -Sentitlements.plist "$BINARY"
+          ldid -S"$(pwd)/entitlements.plist" "$BINARY"
           echo "Verifying entitlements:"
           ldid -e "$BINARY" || true
           mkdir -p Payload

@@ -47,11 +47,17 @@ static int hook_sysctl(int *mib, u_int nl, void *old, size_t *osz, void *n, size
 
 static kern_return_t (*orig_task_info)(task_t, task_flavor_t, integer_t *, mach_msg_type_number_t *);
 static kern_return_t hook_task_info(task_t t, task_flavor_t f, integer_t *o, mach_msg_type_number_t *c) {
-    return KERN_SUCCESS;
+    return orig_task_info(t, f, o, c);
 }
 
-static kern_return_t (*orig_tgep)();
-static kern_return_t hook_tgep() { return KERN_SUCCESS; }
+static kern_return_t (*orig_tgep)(task_t, exception_mask_t, exception_mask_array_t,
+                                   mach_msg_type_number_t *, exception_handler_array_t,
+                                   exception_behavior_array_t, exception_flavor_array_t);
+static kern_return_t hook_tgep(task_t t, exception_mask_t m, exception_mask_array_t ma,
+                                mach_msg_type_number_t *c, exception_handler_array_t ha,
+                                exception_behavior_array_t ba, exception_flavor_array_t fa) {
+    return orig_tgep(t, m, ma, c, ha, ba, fa);
+}
 
 static uint32_t (*orig_dyld_count)(void);
 static const char *(*orig_dyld_name)(uint32_t);
@@ -108,10 +114,6 @@ static int hook_sysctlbyname(const char *n, void *o, size_t *sz, void *ne, size_
     return orig_sysctlbyname(n, o, sz, ne, nsz);
 }
 
-static void hook_exit(int c) {}
-static void hook__exit(int c) {}
-static void hook_abort(void) {}
-
 static int (*orig_kill)(pid_t, int);
 static int hook_kill(pid_t pid, int sig) {
     if (pid == getpid() && (sig == SIGKILL || sig == SIGTERM)) return 0;
@@ -129,9 +131,6 @@ static void hookAntiDebug(void) {
     MH("_dyld_image_count",   hook_dyld_count, &orig_dyld_count);
     MH("_dyld_get_image_name", hook_dyld_name,  &orig_dyld_name);
     MH("sysctlbyname", hook_sysctlbyname, &orig_sysctlbyname);
-    MHN("exit",  hook_exit);
-    MHN("_exit", hook__exit);
-    MHN("abort", hook_abort);
     MH("kill",   hook_kill, &orig_kill);
 }
 

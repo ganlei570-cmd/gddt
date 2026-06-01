@@ -18,6 +18,7 @@ jobs:
 
       - name: Setup Theos
         run: |
+          brew install ldid
           git clone --recursive https://github.com/theos/theos.git $THEOS
           mkdir -p $THEOS/sdks
           XCODE_SDK=$(xcrun --sdk iphoneos --show-sdk-path)

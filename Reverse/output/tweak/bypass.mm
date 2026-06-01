@@ -52,8 +52,7 @@ static uint32_t hook_dyld_count(void) {
     return orig_dyld_count();
 }
 static const char *hook_dyld_name(uint32_t idx) {
-    const char *nm = orig_dyld_name(idx);
-    return isInjDylib(nm) ? "/usr/lib/libz.1.dylib" : nm;
+    return orig_dyld_name(idx);
 }
 
 static int (*orig_connect)(int, const struct sockaddr *, socklen_t);

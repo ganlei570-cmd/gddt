@@ -203,10 +203,16 @@ struct ActionBtn: View {
     let title: String
     let enabled: Bool
     let action: () -> Void
+    init(_ title: String, enabled: Bool, action: @escaping () -> Void) {
+        self.title = title; self.enabled = enabled; self.action = action
+    }
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 13)).foregroundColor(enabled ? .white : Color(hex: "8B8FA8"))
-                .frame(maxWidth: .infinity).frame(height: 44)
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundColor(enabled ? .white : Color(hex: "8B8FA8"))
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
                 .background(Color(hex: enabled ? "353649" : "252535"))
                 .cornerRadius(10)
         }

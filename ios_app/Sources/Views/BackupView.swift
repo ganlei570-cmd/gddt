@@ -125,8 +125,11 @@ struct BackupRow: View {
 
 struct TBtn: View {
     let title: String; let color: String; let action: () -> Void
+    init(_ title: String, color: String, action: @escaping () -> Void) {
+        self.title = title; self.color = color; self.action = action
+    }
     var body: some View {
-        Button(title, action: action)
+        Button(action: action) { Text(title) }
             .font(.system(size: 13)).foregroundColor(.white)
             .frame(maxWidth: .infinity).frame(height: 42)
             .background(Color(hex: color)).cornerRadius(10)

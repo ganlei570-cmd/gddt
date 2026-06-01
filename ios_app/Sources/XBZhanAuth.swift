@@ -1,5 +1,6 @@
 import Foundation
 import CommonCrypto
+import UIKit
 
 private let SOFT          = "N7vfi8ZKGlXO2SArgC"
 private let SOFT_KEY      = "GC6tgXFhCreKn7s323CLtENVyP4CYsih"

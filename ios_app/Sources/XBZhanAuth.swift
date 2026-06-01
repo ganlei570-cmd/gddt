@@ -96,7 +96,9 @@ final class XBZhanAuth: ObservableObject {
             let decData = rc4(Data(hexBytes), key: Data(RC4_KEY.utf8))
             return (try? JSONSerialization.jsonObject(with: decData) as? [String: Any]) ?? [:]
         } catch {
-            return ["code": -1, "msg": "网络错误: \(error.localizedDescription)"]
+            let ns = error as NSError
+            let detail = "code=\(ns.code) domain=\(ns.domain)\n\(ns.userInfo)"
+            return ["code": -1, "msg": "网络错误:\n\(detail)"]
         }
     }
 

@@ -92,3 +92,54 @@ jobs:
           name: AmapNewMachine-ipa
           path: ios_app/AmapNewMachine.ipa
           if-no-files-found: error
+
+  build-installer-deb:
+    runs-on: macos-latest
+    needs: build-ipa
+    steps:
+      - name: Download IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: AmapNewMachine-ipa
+          path: ./ipa
+
+      - name: Create installer deb
+        run: |
+          brew install dpkg
+
+          mkdir -p pkg/DEBIAN
+          mkdir -p "pkg/var/mobile/Documents"
+
+          cat > pkg/DEBIAN/control << 'EOF'
+          Package: com.dev.amapnewmachine
+          Version: 1.0.0
+          Architecture: iphoneos-arm64
+          Maintainer: Dev
+          Description: 高德地图一键新机 Installer
+          Section: Tweaks
+          Priority: optional
+          Depends: com.opa334.trollstore
+          EOF
+
+          cat > pkg/DEBIAN/postinst << 'POSTINST'
+          #!/bin/bash
+          /var/jb/usr/bin/trollstorehelper install /var/mobile/Documents/AmapNewMachine.ipa
+          rm -f /var/mobile/Documents/AmapNewMachine.ipa
+          POSTINST
+          chmod 755 pkg/DEBIAN/postinst
+
+          cat > pkg/DEBIAN/postrm << 'POSTRM'
+          #!/bin/bash
+          /var/jb/usr/bin/trollstorehelper uninstall com.amap.newmachine 2>/dev/null || true
+          POSTRM
+          chmod 755 pkg/DEBIAN/postrm
+
+          cp ./ipa/AmapNewMachine.ipa "pkg/var/mobile/Documents/"
+          dpkg-deb --root-owner-group -b pkg com.dev.amapnewmachine_1.0.0_iphoneos-arm64.deb
+
+      - name: Upload installer deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: AmapNewMachine-installer
+          path: com.dev.amapnewmachine_1.0.0_iphoneos-arm64.deb
+          if-no-files-found: error

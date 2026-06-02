@@ -15,8 +15,7 @@ static const char * const kJailPaths[] = {
     "systemhook", "ElleKit", "frida", "cynject", NULL
 };
 static const char * const kInjKw[] = {
-    "ellekit", "substrate", "tweakinject",
-    "cynject", "frida", "systemhook", NULL
+    "frida", "cynject", NULL
 };
 
 static BOOL isJailPath(const char *p) {
@@ -80,8 +79,19 @@ static char *hook_getenv(const char *k) {
     return orig_getenv(k);
 }
 
-static FILE *hook_popen(const char *c, const char *m) { return NULL; }
-static int hook_system(const char *c) { return 0; }
+static BOOL isSuspiciousCmd(const char *c) {
+    if (!c) return NO;
+    return strstr(c, "frida") || strstr(c, "cycript") ||
+           strstr(c, "ps ") || strstr(c, "proc/") ? YES : NO;
+}
+static FILE *(*orig_popen)(const char *, const char *);
+static FILE *hook_popen(const char *c, const char *m) {
+    return isSuspiciousCmd(c) ? NULL : orig_popen(c, m);
+}
+static int (*orig_system)(const char *);
+static int hook_system(const char *c) {
+    return isSuspiciousCmd(c) ? 0 : orig_system(c);
+}
 
 static void *(*orig_dlopen)(const char *, int);
 static void *hook_dlopen(const char *p, int f) { return isInjDylib(p) ? NULL : orig_dlopen(p, f); }
@@ -111,8 +121,8 @@ static void hookEnvDetect(void) {
     void *sfn = dlsym(RTLD_DEFAULT, "stat64") ?: dlsym(RTLD_DEFAULT, "stat");
     if (sfn) MSHookFunction(sfn, (void *)hook_stat, (void **)&orig_stat);
     MH("getenv",  hook_getenv,  &orig_getenv);
-    MHN("popen",  hook_popen);
-    MHN("system", hook_system);
+    MH("popen",  hook_popen,  &orig_popen);
+    MH("system", hook_system, &orig_system);
     MH("dlopen",  hook_dlopen,  &orig_dlopen);
 }
 

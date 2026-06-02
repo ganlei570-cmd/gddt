@@ -13,3 +13,4 @@ AmapNewDevice_FRAMEWORKS   = UIKit Foundation Security CoreFoundation AdSupport
 AmapNewDevice_LIBRARIES    = substrate
 
 include $(THEOS)/makefiles/tweak.mk
+

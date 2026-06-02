@@ -23,7 +23,6 @@ struct BackupView: View {
                         BackupRow(item: item, selected: selected?.id == item.id)
                             .onTapGesture { selected = item }
                             .listRowBackground(Color(hex: selected?.id == item.id ? "353649" : "252538"))
-                            .listRowSeparatorTint(Color(hex: "333448"))
                     }
                     .listStyle(.plain)
                     .background(Color(hex: "252538"))
@@ -114,12 +113,15 @@ struct BackupRow: View {
                 .font(.system(size: 11)).foregroundColor(Color(hex: "8B8FA8"))
         }
         .padding(.vertical, 4)
-        .overlay(alignment: .trailing) {
-            if selected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(Color(hex: "22C55E"))
+        .overlay(
+            HStack {
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(Color(hex: "22C55E"))
+                }
             }
-        }
+        )
     }
 }
 

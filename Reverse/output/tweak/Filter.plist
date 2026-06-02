@@ -7,7 +7,6 @@
         <key>Bundles</key>
         <array>
             <string>com.autonavi.amap</string>
-            <string>com.amap.newmachine</string>
         </array>
     </dict>
 </dict>

@@ -43,8 +43,6 @@
             %init;
             dlopen("/System/Library/Frameworks/AdSupport.framework/AdSupport", RTLD_NOW);
             %init(GAdSupport);
-        } else if ([bid isEqualToString:@"com.amap.newmachine"]) {
-            initCleanHooks();
         }
     }
 }

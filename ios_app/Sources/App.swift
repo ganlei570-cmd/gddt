@@ -18,6 +18,7 @@ struct AmapNewMachineApp: App {
     }
 }
 
+@MainActor
 class AuthState: ObservableObject {
     @Published var isLoggedIn = false
 
@@ -26,7 +27,7 @@ class AuthState: ObservableObject {
         guard !cached.isEmpty else { return }
         Task {
             let (ok, _) = await XBZhanAuth.shared.login(cardKey: cached)
-            await MainActor.run { self.isLoggedIn = ok }
+            self.isLoggedIn = ok
         }
     }
 }

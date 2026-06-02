@@ -11,6 +11,7 @@ private let API_BASE      = "http://api2.xbzhan.com"
 private let CACHE_KEY     = "xb_cached_card_key"
 private let HB_INTERVAL: TimeInterval = 120
 
+@MainActor
 final class XBZhanAuth: ObservableObject {
     static let shared = XBZhanAuth()
 

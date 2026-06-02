@@ -7,6 +7,9 @@ on:
       - 'ios_app/**'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-tweak:
     runs-on: macos-latest
@@ -92,6 +95,18 @@ jobs:
           name: AmapNewMachine-ipa
           path: ios_app/AmapNewMachine.ipa
           if-no-files-found: error
+
+      - name: Commit IPA to dist/
+        run: |
+          mkdir -p dist
+          cp ios_app/AmapNewMachine.ipa dist/AmapNewMachine.ipa
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dist/AmapNewMachine.ipa
+          git diff --cached --quiet || git commit -m "ci: update dist/AmapNewMachine.ipa [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-installer-deb:
     runs-on: macos-latest

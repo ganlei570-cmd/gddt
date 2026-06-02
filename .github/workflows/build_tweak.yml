@@ -108,33 +108,52 @@ jobs:
           brew install dpkg
 
           mkdir -p pkg/DEBIAN
-          mkdir -p "pkg/var/mobile/Documents"
+          mkdir -p "pkg/var/jb/tmp"
 
           cat > pkg/DEBIAN/control << 'EOF'
-          Package: com.dev.amapnewmachine
-          Version: 1.0.0
-          Architecture: iphoneos-arm64
-          Maintainer: Dev
-          Description: 高德地图一键新机 Installer
-          Section: Tweaks
-          Priority: optional
-          Depends: com.opa334.trollstore
-          EOF
+Package: com.dev.amapnewmachine
+Version: 1.0.1
+Architecture: iphoneos-arm64
+Maintainer: Dev
+Description: 高德地图一键新机 Installer
+Section: Tweaks
+Priority: optional
+EOF
 
           cat > pkg/DEBIAN/postinst << 'POSTINST'
-          #!/bin/bash
-          /var/jb/usr/bin/trollstorehelper install /var/mobile/Documents/AmapNewMachine.ipa
-          rm -f /var/mobile/Documents/AmapNewMachine.ipa
-          POSTINST
+#!/bin/bash
+LOG=/var/mobile/Library/Logs/amapinstall.log
+IPA=/var/jb/tmp/AmapNewMachine.ipa
+echo "[postinst] start $(date)" >> $LOG
+
+HELPER=""
+for p in /var/jb/usr/bin/trollstorehelper /usr/bin/trollstorehelper /var/jb/basebin/trollstorehelper; do
+  if [ -x "$p" ]; then HELPER="$p"; break; fi
+done
+echo "[postinst] helper=$HELPER ipa_exists=$(test -f $IPA && echo yes || echo no)" >> $LOG
+
+if [ -z "$HELPER" ]; then
+  echo "[postinst] ERROR: trollstorehelper not found" >> $LOG
+  exit 1
+fi
+
+"$HELPER" install "$IPA" >> $LOG 2>&1
+EXIT=$?
+echo "[postinst] install exit=$EXIT" >> $LOG
+rm -f "$IPA"
+exit $EXIT
+POSTINST
           chmod 755 pkg/DEBIAN/postinst
 
           cat > pkg/DEBIAN/postrm << 'POSTRM'
-          #!/bin/bash
-          /var/jb/usr/bin/trollstorehelper uninstall com.amap.newmachine 2>/dev/null || true
-          POSTRM
+#!/bin/bash
+for p in /var/jb/usr/bin/trollstorehelper /usr/bin/trollstorehelper; do
+  [ -x "$p" ] && "$p" uninstall com.amap.newmachine 2>/dev/null && break
+done
+POSTRM
           chmod 755 pkg/DEBIAN/postrm
 
-          cp ./ipa/AmapNewMachine.ipa "pkg/var/mobile/Documents/"
+          cp ./ipa/AmapNewMachine.ipa "pkg/var/jb/tmp/"
           dpkg-deb --root-owner-group -b pkg com.dev.amapnewmachine_1.0.0_iphoneos-arm64.deb
 
       - name: Upload installer deb

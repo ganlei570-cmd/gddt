@@ -1,0 +1,8 @@
+Package: com.dev.yijiannxinji
+Name: 一键新机
+Version: 1.0.0
+Architecture: iphoneos-arm
+Author: Dev
+Maintainer: Dev
+Description: 高德地图一键新机
+Section: Applications

@@ -6,14 +6,15 @@
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-    self.window.backgroundColor = [UIColor colorWithRed:28/255.0 green:30/255.0 blue:42/255.0 alpha:1];
+    self.window.backgroundColor = [UIColor whiteColor];
     UINavigationController *nav = [[UINavigationController alloc]
         initWithRootViewController:[LoginViewController new]];
-    nav.navigationBar.barStyle = UIBarStyleBlack;
+    UIColor *blue = [UIColor colorWithRed:37/255.0 green:99/255.0 blue:235/255.0 alpha:1];
+    nav.navigationBar.barStyle = UIBarStyleDefault;
     nav.navigationBar.translucent = NO;
-    nav.navigationBar.barTintColor = [UIColor colorWithRed:28/255.0 green:30/255.0 blue:42/255.0 alpha:1];
-    nav.navigationBar.tintColor = [UIColor whiteColor];
-    [nav.navigationBar setTitleTextAttributes:@{NSForegroundColorAttributeName: [UIColor whiteColor]}];
+    nav.navigationBar.barTintColor = [UIColor whiteColor];
+    nav.navigationBar.tintColor = blue;
+    [nav.navigationBar setTitleTextAttributes:@{NSForegroundColorAttributeName: [UIColor blackColor]}];
     self.window.rootViewController = nav;
     [self.window makeKeyAndVisible];
     return YES;

@@ -8,8 +8,9 @@ APPLICATION_NAME = YiJianXinJi
 
 YiJianXinJi_FILES      = main.m AppDelegate.m LoginViewController.m MainViewController.m BackupViewController.m XBZhanAuth.m ProfileManager.m
 YiJianXinJi_FRAMEWORKS = UIKit Foundation Security
-YiJianXinJi_CFLAGS     = -fobjc-arc -Wno-deprecated-declarations
+YiJianXinJi_CFLAGS     = -fobjc-arc
 YiJianXinJi_CODESIGN_FLAGS = -Sentitlements.plist
 YiJianXinJi_LDFLAGS    = -dead_strip_dylibs
+YiJianXinJi_RESOURCE_FILES = Info.plist
 
 include $(THEOS)/makefiles/application.mk

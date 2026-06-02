@@ -106,54 +106,48 @@ jobs:
       - name: Create installer deb
         run: |
           brew install dpkg
-
-          mkdir -p pkg/DEBIAN
-          mkdir -p "pkg/var/jb/tmp"
-
-          cat > pkg/DEBIAN/control << 'EOF'
-Package: com.dev.amapnewmachine
-Version: 1.0.1
-Architecture: iphoneos-arm64
-Maintainer: Dev
-Description: 高德地图一键新机 Installer
-Section: Tweaks
-Priority: optional
-EOF
-
-          cat > pkg/DEBIAN/postinst << 'POSTINST'
-#!/bin/bash
-LOG=/var/mobile/Library/Logs/amapinstall.log
-IPA=/var/jb/tmp/AmapNewMachine.ipa
-echo "[postinst] start $(date)" >> $LOG
-
-HELPER=""
-for p in /var/jb/usr/bin/trollstorehelper /usr/bin/trollstorehelper /var/jb/basebin/trollstorehelper; do
-  if [ -x "$p" ]; then HELPER="$p"; break; fi
-done
-echo "[postinst] helper=$HELPER ipa_exists=$(test -f $IPA && echo yes || echo no)" >> $LOG
-
-if [ -z "$HELPER" ]; then
-  echo "[postinst] ERROR: trollstorehelper not found" >> $LOG
-  exit 1
-fi
-
-"$HELPER" install "$IPA" >> $LOG 2>&1
-EXIT=$?
-echo "[postinst] install exit=$EXIT" >> $LOG
-rm -f "$IPA"
-exit $EXIT
-POSTINST
-          chmod 755 pkg/DEBIAN/postinst
-
-          cat > pkg/DEBIAN/postrm << 'POSTRM'
-#!/bin/bash
-for p in /var/jb/usr/bin/trollstorehelper /usr/bin/trollstorehelper; do
-  [ -x "$p" ] && "$p" uninstall com.amap.newmachine 2>/dev/null && break
-done
-POSTRM
-          chmod 755 pkg/DEBIAN/postrm
-
-          cp ./ipa/AmapNewMachine.ipa "pkg/var/jb/tmp/"
+          mkdir -p pkg/DEBIAN pkg/var/jb/tmp
+          python3 - << 'PYEOF'
+          import os, stat
+          os.makedirs("pkg/DEBIAN", exist_ok=True)
+          open("pkg/DEBIAN/control","w").write(
+              "Package: com.dev.amapnewmachine\n"
+              "Version: 1.0.1\n"
+              "Architecture: iphoneos-arm64\n"
+              "Maintainer: Dev\n"
+              "Description: 高德地图一键新机 Installer\n"
+              "Section: Tweaks\n"
+              "Priority: optional\n"
+          )
+          postinst = (
+              "#!/bin/bash\n"
+              "LOG=/var/mobile/Library/Logs/amapinstall.log\n"
+              "IPA=/var/jb/tmp/AmapNewMachine.ipa\n"
+              "echo \"[postinst] start $(date)\" >> $LOG\n"
+              "HELPER=''\n"
+              "for p in /var/jb/usr/bin/trollstorehelper /usr/bin/trollstorehelper /var/jb/basebin/trollstorehelper; do\n"
+              "  [ -x \"$p\" ] && HELPER=$p && break\n"
+              "done\n"
+              "echo \"[postinst] helper=$HELPER ipa=$(test -f $IPA && echo yes || echo no)\" >> $LOG\n"
+              "[ -z \"$HELPER\" ] && echo '[postinst] ERROR: no helper' >> $LOG && exit 1\n"
+              "\"$HELPER\" install \"$IPA\" >> $LOG 2>&1\n"
+              "EXIT=$?\n"
+              "echo \"[postinst] exit=$EXIT\" >> $LOG\n"
+              "rm -f \"$IPA\"\n"
+              "exit $EXIT\n"
+          )
+          open("pkg/DEBIAN/postinst","w").write(postinst)
+          os.chmod("pkg/DEBIAN/postinst", 0o755)
+          postrm = (
+              "#!/bin/bash\n"
+              "for p in /var/jb/usr/bin/trollstorehelper /usr/bin/trollstorehelper; do\n"
+              "  [ -x \"$p\" ] && \"$p\" uninstall com.amap.newmachine 2>/dev/null && break\n"
+              "done\n"
+          )
+          open("pkg/DEBIAN/postrm","w").write(postrm)
+          os.chmod("pkg/DEBIAN/postrm", 0o755)
+          PYEOF
+          cp ./ipa/AmapNewMachine.ipa pkg/var/jb/tmp/
           dpkg-deb --root-owner-group -b pkg com.dev.amapnewmachine_1.0.0_iphoneos-arm64.deb
 
       - name: Upload installer deb

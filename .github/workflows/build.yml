@@ -36,44 +36,56 @@ jobs:
 
       - name: Verify architectures
         run: |
-          DEB=$(ls Reverse/output/tweak/packages/*.deb | tail -1)
-          IPA=$(ls ios_app_oc/packages/*.ipa | tail -1)
+          echo "=== tweak packages ==="
+          ls -la Reverse/output/tweak/packages/ || echo "(empty)"
+          echo "=== app packages ==="
+          ls -la ios_app_oc/packages/ || echo "(empty)"
 
-          # 解包 deb 提取 dylib 验证架构
+          DEB=$(ls Reverse/output/tweak/packages/*.deb | tail -1)
           mkdir -p /tmp/debcheck
           cp "$DEB" /tmp/debcheck/tweak.deb
           cd /tmp/debcheck && ar x tweak.deb
           tar xf data.tar* --wildcards '*.dylib' -C /tmp/debcheck 2>/dev/null || true
           DYLIB=$(find /tmp/debcheck -name "*.dylib" | head -1)
           if [ -n "$DYLIB" ]; then
-            echo "=== deb dylib architectures ==="
+            echo "=== tweak dylib architectures ==="
             lipo -archs "$DYLIB"
           fi
 
-          # 解包 IPA 验证架构
-          mkdir -p /tmp/ipacheck
-          unzip -q "$IPA" -d /tmp/ipacheck
-          APPBIN=$(find /tmp/ipacheck -name "YiJianXinJi" -type f | head -1)
-          if [ -n "$APPBIN" ]; then
-            echo "=== IPA architectures ==="
-            lipo -archs "$APPBIN"
+          APP_PKG=$(ls ios_app_oc/packages/* 2>/dev/null | tail -1)
+          if [ -n "$APP_PKG" ]; then
+            EXT="${APP_PKG##*.}"
+            if [ "$EXT" = "ipa" ]; then
+              mkdir -p /tmp/ipacheck
+              unzip -q "$APP_PKG" -d /tmp/ipacheck
+              APPBIN=$(find /tmp/ipacheck -name "YiJianXinJi" -type f | head -1)
+              if [ -n "$APPBIN" ]; then
+                echo "=== IPA architectures ==="
+                lipo -archs "$APPBIN"
+              fi
+            else
+              echo "=== app package is .$EXT (not IPA) ==="
+            fi
           fi
 
       - name: Copy to dist/ with version number
         run: |
-          MAXV=$(ls dist/ 2>/dev/null | grep -oP '_v\K[0-9]+' | sort -n | tail -1)
+          MAXV=$(ls dist/ 2>/dev/null | grep -oP '_v[0-9]+' | grep -oP '[0-9]+' | sort -n | tail -1)
           V=$((${MAXV:-0} + 1))
           echo "NEXT_V=$V" >> $GITHUB_ENV
 
           DEB=$(ls Reverse/output/tweak/packages/*.deb | tail -1)
-          IPA=$(ls ios_app_oc/packages/*.ipa | tail -1)
-
           cp "$DEB" "dist/com.dev.amapnewdevice_1.0.0_iphoneos-arm64_v${V}.deb"
-          cp "$IPA" "dist/YiJianXinJi_v${V}.ipa"
+          echo "  deb: dist/com.dev.amapnewdevice_1.0.0_iphoneos-arm64_v${V}.deb"
+
+          APP_PKG=$(ls ios_app_oc/packages/* 2>/dev/null | tail -1)
+          if [ -n "$APP_PKG" ]; then
+            EXT="${APP_PKG##*.}"
+            cp "$APP_PKG" "dist/YiJianXinJi_v${V}.${EXT}"
+            echo "  app: dist/YiJianXinJi_v${V}.${EXT}"
+          fi
 
           echo "Built: v${V}"
-          echo "  deb: dist/com.dev.amapnewdevice_1.0.0_iphoneos-arm64_v${V}.deb"
-          echo "  ipa: dist/YiJianXinJi_v${V}.ipa"
 
       - name: Commit back to repo
         run: |

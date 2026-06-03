@@ -77,8 +77,8 @@ jobs:
           echo "NEXT_V=$V" >> $GITHUB_ENV
 
           DEB=$(ls Reverse/output/tweak/packages/*.deb | tail -1)
-          cp "$DEB" "dist/com.dev.amapnewdevice_1.0.0_iphoneos-arm64_v${V}.deb"
-          echo "  deb: dist/com.dev.amapnewdevice_1.0.0_iphoneos-arm64_v${V}.deb"
+          cp "$DEB" "dist/tweak_v${V}.deb"
+          echo "  deb: dist/tweak_v${V}.deb"
 
           cp "ios_app_oc/packages/YiJianXinJi.ipa" "dist/YiJianXinJi_v${V}.ipa"
           echo "  ipa: dist/YiJianXinJi_v${V}.ipa"

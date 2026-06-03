@@ -72,7 +72,7 @@ jobs:
 
       - name: Copy to dist/ with version number
         run: |
-          MAXV=$(ls dist/ 2>/dev/null | grep -oP '_v[0-9]+' | grep -oP '[0-9]+' | sort -n | tail -1)
+          MAXV=$(ls dist/ 2>/dev/null | grep -oE '_v[0-9]+' | grep -oE '[0-9]+' | sort -n | tail -1)
           V=$((${MAXV:-1} + 1))
           echo "NEXT_V=$V" >> $GITHUB_ENV
 

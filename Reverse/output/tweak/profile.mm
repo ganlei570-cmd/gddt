@@ -22,10 +22,7 @@ static NSMutableSet<NSString *> *defaultKCSet(void) {
 }
 
 static NSSet<NSString *> *defaultPrefSet(void) {
-    // __AMAP_APP_FIRST__ / appInitMd5 已由 ProfileManager 文件删除清理，
-    // 不需要在 hook 层拦截，否则每次启动都触发"首次启动"逻辑 → 风控异常信号
-    return [NSSet setWithObjects:
-        @"login_credit", @"ATAuthSDK_POP_com.autonavi.amap", nil];
+    return [NSSet set];
 }
 
 static NSString *findActiveProfilePath(void) {

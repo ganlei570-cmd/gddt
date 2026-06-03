@@ -38,10 +38,6 @@ static NSArray<NSString *> *kcKeys(void) {
     NSMutableDictionary *kc = [NSMutableDictionary dictionary];
     for (NSString *k in kcKeys()) kc[k] = @"CLEAR";
     NSMutableDictionary *ud = [NSMutableDictionary dictionary];
-    // __AMAP_APP_FIRST__ / appInitMd5 由文件删除清理，不放入 clear 列表，
-    // 避免 hook 层每次拦截触发"首次启动"重复信号
-    for (NSString *k in @[@"login_credit", @"ATAuthSDK_POP_com.autonavi.amap"])
-        ud[k] = [NSNull null];
     char machine[64] = {0};
     size_t sz = sizeof(machine);
     sysctlbyname("hw.machine", machine, &sz, NULL, 0);

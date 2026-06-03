@@ -36,7 +36,13 @@ jobs:
       - name: Build IPA (arm64 + arm64e)
         run: |
           cd ios_app_oc
-          make package FINALPACKAGE=1
+          make FINALPACKAGE=1
+          APP=$(find . -name "YiJianXinJi.app" -type d | grep -v obj/before | head -1)
+          mkdir -p /tmp/Payload
+          cp -r "$APP" /tmp/Payload/YiJianXinJi.app
+          cd /tmp && zip -qr YiJianXinJi.ipa Payload/
+          mkdir -p "$GITHUB_WORKSPACE/ios_app_oc/packages"
+          cp /tmp/YiJianXinJi.ipa "$GITHUB_WORKSPACE/ios_app_oc/packages/YiJianXinJi.ipa"
 
       - name: Verify architectures
         run: |
@@ -56,20 +62,12 @@ jobs:
             lipo -archs "$DYLIB"
           fi
 
-          APP_PKG=$(ls ios_app_oc/packages/* 2>/dev/null | tail -1)
-          if [ -n "$APP_PKG" ]; then
-            EXT="${APP_PKG##*.}"
-            if [ "$EXT" = "ipa" ]; then
-              mkdir -p /tmp/ipacheck
-              unzip -q "$APP_PKG" -d /tmp/ipacheck
-              APPBIN=$(find /tmp/ipacheck -name "YiJianXinJi" -type f | head -1)
-              if [ -n "$APPBIN" ]; then
-                echo "=== IPA architectures ==="
-                lipo -archs "$APPBIN"
-              fi
-            else
-              echo "=== app package is .$EXT (not IPA) ==="
-            fi
+          IPA="ios_app_oc/packages/YiJianXinJi.ipa"
+          if [ -f "$IPA" ]; then
+            mkdir -p /tmp/ipacheck
+            unzip -q "$IPA" -d /tmp/ipacheck
+            APPBIN=$(find /tmp/ipacheck -name "YiJianXinJi" -type f | head -1)
+            [ -n "$APPBIN" ] && echo "=== IPA architectures ===" && lipo -archs "$APPBIN"
           fi
 
       - name: Copy to dist/ with version number
@@ -82,12 +80,8 @@ jobs:
           cp "$DEB" "dist/com.dev.amapnewdevice_1.0.0_iphoneos-arm64_v${V}.deb"
           echo "  deb: dist/com.dev.amapnewdevice_1.0.0_iphoneos-arm64_v${V}.deb"
 
-          APP_PKG=$(ls ios_app_oc/packages/* 2>/dev/null | tail -1)
-          if [ -n "$APP_PKG" ]; then
-            EXT="${APP_PKG##*.}"
-            cp "$APP_PKG" "dist/YiJianXinJi_v${V}.${EXT}"
-            echo "  app: dist/YiJianXinJi_v${V}.${EXT}"
-          fi
+          cp "ios_app_oc/packages/YiJianXinJi.ipa" "dist/YiJianXinJi_v${V}.ipa"
+          echo "  ipa: dist/YiJianXinJi_v${V}.ipa"
 
           echo "Built: v${V}"
 

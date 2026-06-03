@@ -1,13 +1,14 @@
 #import "MainViewController.h"
 #import "BackupViewController.h"
 #import "ProfileManager.h"
+#import "Logger.h"
 
-#define CLR_BG   [UIColor colorWithRed:28/255.0  green:30/255.0  blue:42/255.0  alpha:1]
-#define CLR_CARD [UIColor colorWithRed:37/255.0  green:37/255.0  blue:56/255.0  alpha:1]
-#define CLR_BTN  [UIColor colorWithRed:53/255.0  green:54/255.0  blue:73/255.0  alpha:1]
+#define CLR_BG   [UIColor whiteColor]
+#define CLR_CARD [UIColor colorWithRed:245/255.0 green:245/255.0 blue:247/255.0 alpha:1]
+#define CLR_BTN  [UIColor colorWithRed:37/255.0  green:99/255.0  blue:235/255.0 alpha:1]
 #define CLR_GRN  [UIColor colorWithRed:34/255.0  green:197/255.0 blue:94/255.0  alpha:1]
 #define CLR_RED  [UIColor colorWithRed:239/255.0 green:68/255.0  blue:68/255.0  alpha:1]
-#define CLR_SUB  [UIColor colorWithRed:139/255.0 green:143/255.0 blue:168/255.0 alpha:1]
+#define CLR_SUB  [UIColor colorWithRed:120/255.0 green:120/255.0 blue:128/255.0 alpha:1]
 
 static NSArray<NSString *> *btnTitles(void) {
     return @[@"一键新机", @"清理Safari", @"备份记录", @"清理剪贴板", @"清理Keychain", @"还原机器"];
@@ -25,6 +26,7 @@ static NSArray<NSString *> *btnTitles(void) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    [Logger log:@"app_open"];
     self.title = @"一键新机";
     self.view.backgroundColor = CLR_BG;
     self.navigationItem.hidesBackButton = YES;
@@ -89,7 +91,7 @@ static NSArray<NSString *> *btnTitles(void) {
 - (UILabel *)infoLabelIn:(UIView *)parent frame:(CGRect)f size:(CGFloat)sz bold:(BOOL)bold {
     UILabel *l = [[UILabel alloc] initWithFrame:f];
     l.font = bold ? [UIFont boldSystemFontOfSize:sz] : [UIFont systemFontOfSize:sz];
-    l.textColor = [UIColor whiteColor];
+    l.textColor = [UIColor blackColor];
     [parent addSubview:l];
     return l;
 }
@@ -114,24 +116,57 @@ static NSArray<NSString *> *btnTitles(void) {
     }
 }
 
-- (void)doNewMachine {
-    NSError *e;
-    BOOL ok = [[ProfileManager shared] newMachineWithError:&e];
-    if (ok) {
-        NSString *idfv = [ProfileManager shared].activeIdfv ?: @"";
-        NSString *pre = idfv.length >= 8 ? [idfv substringToIndex:8] : idfv;
-        [self showToast:[NSString stringWithFormat:@"新机完成\nIDFV:%@\n请重启高德地图", pre] color:CLR_GRN];
-        [self refreshCard];
-    } else {
-        [self showToast:e.localizedDescription ?: @"操作失败" color:CLR_RED];
+- (NSInteger)clearSafariData {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *base = @"/var/mobile/Library/Safari";
+    NSArray *targets = @[
+        @"History.db", @"History.db-shm", @"History.db-wal",
+        @"BrowserState.db", @"BrowserState.db-shm", @"BrowserState.db-wal",
+        @"SafariTabs.db", @"SafariTabs.db-shm", @"SafariTabs.db-wal",
+        @"CloudTabs.db", @"CloudTabs.db-shm", @"CloudTabs.db-wal",
+    ];
+    NSInteger n = 0;
+    for (NSString *f in targets) {
+        NSString *p = [base stringByAppendingPathComponent:f];
+        if ([fm fileExistsAtPath:p] && [fm removeItemAtPath:p error:nil]) n++;
     }
+    return n;
+}
+
+- (void)doNewMachine {
+    UIAlertController *hud = [UIAlertController
+        alertControllerWithTitle:@"一键新机" message:@"正在备份高德数据..."
+        preferredStyle:UIAlertControllerStyleAlert];
+    hud.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
+    [self presentViewController:hud animated:YES completion:nil];
+
+    [[ProfileManager shared] newMachineAsync:^(BOOL done, NSString *status, NSError *err) {
+        if (!done) { hud.message = status; return; }
+        [hud dismissViewControllerAnimated:YES completion:^{
+            if (!err) {
+                [self clearSafariData];
+                NSString *idfv = [ProfileManager shared].activeIdfv ?: @"";
+                NSString *pre  = idfv.length >= 8 ? [idfv substringToIndex:8] : idfv;
+                [Logger log:@"new_machine_ok" info:@{@"idfv_prefix": pre}];
+                [self showToast:[NSString stringWithFormat:@"新机完成\nIDFV:%@\n数据已清理并备份\n请重启高德地图", pre]
+                          color:CLR_GRN];
+                [self refreshCard];
+            } else {
+                NSString *msg = err.localizedDescription ?: @"操作失败";
+                [Logger log:@"new_machine_fail" info:@{@"err": msg}];
+                [self showToast:msg color:CLR_RED];
+            }
+        }];
+    }];
 }
 
 - (void)doClearSafari {
-    NSString *p = @"/var/mobile/Library/Cookies/com.apple.SafariShared.WebKit.Cookies.binarycookies";
-    NSError *e;
-    [[NSFileManager defaultManager] removeItemAtPath:p error:&e];
-    [self showToast:e ? @"清理失败（需权限）" : @"Safari Cookie 已清理" color:e ? CLR_RED : CLR_GRN];
+    NSInteger n = [self clearSafariData];
+    [Logger log:@"clear_safari" info:@{@"count": @(n)}];
+    [self showToast:n > 0
+        ? [NSString stringWithFormat:@"Safari 已清理（%ld项）", (long)n]
+        : @"Safari 无数据"
+        color:CLR_GRN];
 }
 
 - (void)doBackup {
@@ -148,6 +183,8 @@ static NSArray<NSString *> *btnTitles(void) {
 - (void)doClearKeychain {
     NSError *e;
     BOOL ok = [[ProfileManager shared] clearKeychainWithError:&e];
+    [Logger log:ok ? @"clear_keychain_ok" : @"clear_keychain_fail"
+           info:ok ? nil : @{@"err": e.localizedDescription ?: @"未知"}];
     [self showToast:ok ? @"Keychain 标记已清理" : (e.localizedDescription ?: @"失败")
               color:ok ? CLR_GRN : CLR_RED];
 }

@@ -1,21 +1,34 @@
 #import <Foundation/Foundation.h>
+#import "tlog.h"
 #import <sys/sysctl.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
-#import <mach/mach.h>
 #import <dlfcn.h>
+#import <mach/mach.h>
+#import <CoreFoundation/CFPreferences.h>
+#import <libkern/OSCacheControl.h>
+#include <signal.h>
+#include <unistd.h>
 #import <substrate.h>
 #import "bypass.h"
+#import "profile.h"
 
 static const char * const kJailPaths[] = {
-    "/Applications/Cydia.app", "/Applications/Sileo.app",
-    "/Library/MobileSubstrate", "/usr/sbin/sshd",
-    "/etc/apt", "/private/var/lib/apt",
-    "/usr/lib/TweakInject", "/usr/lib/ellekit",
-    "systemhook", "ElleKit", "frida", "cynject", NULL
+    "/Applications/Cydia.app", "/Applications/Sileo.app", "/Applications/Zebra.app",
+    "/Library/MobileSubstrate", "/usr/sbin/sshd", "/usr/bin/ssh",
+    "/etc/apt", "/private/var/lib/apt", "/private/var/stash",
+    "/usr/lib/TweakInject", "/usr/lib/ellekit", "/usr/lib/substrate",
+    "/private/preboot", "systemhook", "ElleKit", "frida", "FridaGadget",
+    "cynject", "substitute", NULL
 };
 static const char * const kInjKw[] = {
     "frida", "cynject", NULL
+};
+
+static const char * const kHideDylibs[] = {
+    "AmapNewDevice", "ElleKit", "ellekit", "TweakInject", "tweakinject",
+    "systemhook", "cynject", "frida", "substrate", "MobileSubstrate",
+    "cycript", NULL
 };
 
 static BOOL isJailPath(const char *p) {
@@ -47,10 +60,30 @@ static int hook_sysctl(int *mib, u_int nl, void *old, size_t *osz, void *n, size
 static uint32_t (*orig_dyld_count)(void);
 static const char *(*orig_dyld_name)(uint32_t);
 
-static uint32_t hook_dyld_count(void) {
-    return orig_dyld_count();
+static BOOL shouldHideDylib(const char *name) {
+    if (!name) return NO;
+    for (int i = 0; kHideDylibs[i]; i++)
+        if (strcasestr(name, kHideDylibs[i])) return YES;
+    return NO;
 }
+
+static uint32_t hook_dyld_count(void) {
+    uint32_t total = orig_dyld_count();
+    uint32_t hidden = 0;
+    for (uint32_t i = 0; i < total; i++)
+        if (shouldHideDylib(orig_dyld_name(i))) hidden++;
+    return total - hidden;
+}
+
 static const char *hook_dyld_name(uint32_t idx) {
+    uint32_t total = orig_dyld_count();
+    uint32_t visible = 0;
+    for (uint32_t i = 0; i < total; i++) {
+        const char *name = orig_dyld_name(i);
+        if (shouldHideDylib(name)) continue;
+        if (visible == idx) return name;
+        visible++;
+    }
     return orig_dyld_name(idx);
 }
 
@@ -79,19 +112,10 @@ static char *hook_getenv(const char *k) {
     return orig_getenv(k);
 }
 
-static BOOL isSuspiciousCmd(const char *c) {
-    if (!c) return NO;
-    return strstr(c, "frida") || strstr(c, "cycript") ||
-           strstr(c, "ps ") || strstr(c, "proc/") ? YES : NO;
-}
 static FILE *(*orig_popen)(const char *, const char *);
-static FILE *hook_popen(const char *c, const char *m) {
-    return isSuspiciousCmd(c) ? NULL : orig_popen(c, m);
-}
+static FILE *hook_popen(const char *c, const char *m) { return NULL; }
 static int (*orig_system)(const char *);
-static int hook_system(const char *c) {
-    return isSuspiciousCmd(c) ? 0 : orig_system(c);
-}
+static int hook_system(const char *c) { return 0; }
 
 static void *(*orig_dlopen)(const char *, int);
 static void *hook_dlopen(const char *p, int f) { return isInjDylib(p) ? NULL : orig_dlopen(p, f); }
@@ -99,19 +123,66 @@ static void *hook_dlopen(const char *p, int f) { return isInjDylib(p) ? NULL : o
 static int (*orig_sysctlbyname)(const char *, void *, size_t *, void *, size_t);
 static int hook_sysctlbyname(const char *n, void *o, size_t *sz, void *ne, size_t nsz) {
     if (n && strstr(n, "kern.proc.pid")) return -1;
-    return orig_sysctlbyname(n, o, sz, ne, nsz);
+    int r = orig_sysctlbyname(n, o, sz, ne, nsz);
+    if (r == 0 && o && sz && n && gMachine &&
+        (strcmp(n, "hw.machine") == 0 || strcmp(n, "hw.model") == 0)) {
+        const char *m = [gMachine UTF8String];
+        strlcpy((char *)o, m, *sz);
+        *sz = strlen(m) + 1;
+    }
+    return r;
 }
 
+#if defined(__arm64e__)
+#import <ptrauth.h>
+#define _STRIP(p) ptrauth_strip((void*)(p), ptrauth_key_function_pointer)
+#else
+#define _STRIP(p) ((void*)(p))
+#endif
+#define MH(sym, hook, orig) do { void *_f=dlsym(RTLD_DEFAULT,sym); if(_f) MSHookFunction(_STRIP(_f),(void*)(hook),(void**)(orig)); } while(0)
 
-#define MH(sym, hook, orig) MSHookFunction(dlsym(RTLD_DEFAULT, sym), (void *)(hook), (void **)(orig))
-#define MHN(sym, hook)      MSHookFunction(dlsym(RTLD_DEFAULT, sym), (void *)(hook), NULL)
+static kern_return_t (*orig_task_info)(task_name_t, task_flavor_t, task_info_t, mach_msg_type_number_t *);
+static kern_return_t hook_task_info(task_name_t t, task_flavor_t f, task_info_t info, mach_msg_type_number_t *cnt) {
+    orig_task_info(t, f, info, cnt);
+    return KERN_SUCCESS;
+}
+
+static kern_return_t (*orig_task_exc_ports)(task_t, exception_mask_t, exception_mask_array_t, mach_msg_type_number_t *, exception_handler_array_t, exception_behavior_array_t, exception_flavor_array_t);
+static kern_return_t hook_task_exc_ports(task_t t, exception_mask_t m, exception_mask_array_t masks, mach_msg_type_number_t *cnt, exception_handler_array_t h, exception_behavior_array_t b, exception_flavor_array_t flv) {
+    if (cnt) *cnt = 0;
+    return KERN_SUCCESS;
+}
+
+static void (*orig_exit)(int);
+static void hook_exit(int code) { tlog(@"exit_blocked", @{@"code": @(code)}); }
+
+static void (*orig__exit)(int);
+static void hook__exit(int code) { tlog(@"_exit_blocked", @{@"code": @(code)}); }
+
+static void (*orig_abort)(void);
+static void hook_abort(void) { tlog(@"abort_blocked", nil); }
+
+static int (*orig_kill)(pid_t, int);
+static int hook_kill(pid_t pid, int sig) {
+    if (pid == getpid() && (sig == SIGKILL || sig == SIGTERM)) {
+        tlog(@"kill_blocked", @{@"sig": @(sig)});
+        return 0;
+    }
+    return orig_kill(pid, sig);
+}
 
 static void hookAntiDebug(void) {
     MH("ptrace",  hook_ptrace,  &orig_ptrace);
     MH("sysctl",  hook_sysctl,  &orig_sysctl);
-    MH("_dyld_image_count",   hook_dyld_count, &orig_dyld_count);
+    MH("_dyld_image_count",    hook_dyld_count, &orig_dyld_count);
     MH("_dyld_get_image_name", hook_dyld_name,  &orig_dyld_name);
     MH("sysctlbyname", hook_sysctlbyname, &orig_sysctlbyname);
+    MH("task_info", hook_task_info, &orig_task_info);
+    MH("task_get_exception_ports", hook_task_exc_ports, &orig_task_exc_ports);
+    MH("exit",  hook_exit,  &orig_exit);
+    MH("_exit", hook__exit, &orig__exit);
+    MH("abort", hook_abort, &orig_abort);
+    MH("kill",  hook_kill,  &orig_kill);
 }
 
 static void hookEnvDetect(void) {
@@ -121,12 +192,52 @@ static void hookEnvDetect(void) {
     void *sfn = dlsym(RTLD_DEFAULT, "stat64") ?: dlsym(RTLD_DEFAULT, "stat");
     if (sfn) MSHookFunction(sfn, (void *)hook_stat, (void **)&orig_stat);
     MH("getenv",  hook_getenv,  &orig_getenv);
-    MH("popen",  hook_popen,  &orig_popen);
-    MH("system", hook_system, &orig_system);
+    MH("popen",   hook_popen,   &orig_popen);
+    MH("system",  hook_system,  &orig_system);
     MH("dlopen",  hook_dlopen,  &orig_dlopen);
+}
+
+// -- CFPreferencesCopyAppValue kill-switch protection --
+
+#define CFPREF_PATCH_LEN 16
+
+static void *s_cfpref_addr = NULL;
+static uint8_t s_cfpref_jmp[CFPREF_PATCH_LEN];
+
+static CFPropertyListRef (*orig_cfpref)(CFStringRef, CFStringRef);
+static CFPropertyListRef hook_cfpref(CFStringRef key, CFStringRef appID) {
+    if (key && gPrefClearSet && [gPrefClearSet containsObject:(__bridge NSString *)key])
+        return NULL;
+    if (!appID) appID = kCFPreferencesCurrentApplication;
+    return CFPreferencesCopyValue(key, appID, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
+}
+
+static void repatch_cfpref(void) {
+    if (!s_cfpref_addr || memcmp(s_cfpref_addr, s_cfpref_jmp, 4) == 0) return;
+    vm_address_t page = (vm_address_t)s_cfpref_addr & ~0xFFFULL;
+    if (vm_protect(mach_task_self(), page, 0x1000, FALSE, VM_PROT_READ|VM_PROT_WRITE|VM_PROT_EXECUTE) != KERN_SUCCESS) return;
+    memcpy(s_cfpref_addr, s_cfpref_jmp, CFPREF_PATCH_LEN);
+    sys_icache_invalidate(s_cfpref_addr, CFPREF_PATCH_LEN);
+    vm_protect(mach_task_self(), page, 0x1000, FALSE, VM_PROT_READ|VM_PROT_EXECUTE);
+}
+
+static void hookCFPrefProtect(void) {
+    void *cfp = dlsym(RTLD_DEFAULT, "CFPreferencesCopyAppValue");
+    if (!cfp) return;
+    s_cfpref_addr = cfp;
+    MSHookFunction(cfp, (void *)hook_cfpref, (void **)&orig_cfpref);
+    memcpy(s_cfpref_jmp, cfp, CFPREF_PATCH_LEN);
+    dispatch_source_t t = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
+        dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0));
+    dispatch_source_set_timer(t, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
+        20 * NSEC_PER_MSEC, 2 * NSEC_PER_MSEC);
+    dispatch_source_set_event_handler(t, ^{ repatch_cfpref(); });
+    dispatch_resume(t);
 }
 
 void installBypassHooks(void) {
     hookAntiDebug();
     hookEnvDetect();
+    hookCFPrefProtect();
+    tlog(@"bypass_installed", nil);
 }

@@ -1,163 +1,184 @@
 #import "BackupViewController.h"
 #import "ProfileManager.h"
 
-#define CLR_BG   [UIColor colorWithRed:28/255.0  green:30/255.0  blue:42/255.0  alpha:1]
-#define CLR_CARD [UIColor colorWithRed:37/255.0  green:37/255.0  blue:56/255.0  alpha:1]
-#define CLR_SEL  [UIColor colorWithRed:53/255.0  green:54/255.0  blue:73/255.0  alpha:1]
 #define CLR_BLUE [UIColor colorWithRed:37/255.0  green:99/255.0  blue:235/255.0 alpha:1]
 #define CLR_GRN  [UIColor colorWithRed:34/255.0  green:197/255.0 blue:94/255.0  alpha:1]
 #define CLR_RED  [UIColor colorWithRed:239/255.0 green:68/255.0  blue:68/255.0  alpha:1]
-#define CLR_DIM  [UIColor colorWithRed:58/255.0  green:59/255.0  blue:80/255.0  alpha:1]
-#define CLR_SUB  [UIColor colorWithRed:139/255.0 green:143/255.0 blue:168/255.0 alpha:1]
+#define CLR_SUB  [UIColor colorWithRed:120/255.0 green:120/255.0 blue:128/255.0 alpha:1]
+#define CLR_SEP  [UIColor colorWithRed:210/255.0 green:210/255.0 blue:215/255.0 alpha:1]
+#define CLR_SEL  [UIColor colorWithRed:219/255.0 green:234/255.0 blue:254/255.0 alpha:1]
 
 @interface BackupViewController () <UITableViewDataSource, UITableViewDelegate>
-@property (nonatomic, strong) UITableView         *tableView;
-@property (nonatomic, strong) NSMutableArray      *backups;
-@property (nonatomic, strong) NSIndexPath         *selected;
-@property (nonatomic, strong) UIView              *toastView;
+@property (nonatomic, strong) UITableView     *tableView;
+@property (nonatomic, strong) NSMutableArray  *backups;
+@property (nonatomic, strong) UIBarButtonItem *deleteNavBtn;
+@property (nonatomic, strong) UIView          *toastView;
+@property (nonatomic, assign) BOOL            isEditing;
 @end
 
 @implementation BackupViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = CLR_BG;
+    self.view.backgroundColor = [UIColor whiteColor];
     self.title = self.restoreMode ? @"选择备份还原" : @"备份管理";
-    if (!self.restoreMode) {
-        UIBarButtonItem *add = [[UIBarButtonItem alloc]
-            initWithTitle:@"新建备份" style:UIBarButtonItemStylePlain
-            target:self action:@selector(onNewBackup)];
-        add.tintColor = CLR_BLUE;
-        self.navigationItem.rightBarButtonItem = add;
-    }
-    [self buildUI];
+    self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds style:UITableViewStylePlain];
+    self.tableView.backgroundColor = [UIColor whiteColor];
+    self.tableView.separatorColor  = CLR_SEP;
+    self.tableView.allowsMultipleSelectionDuringEditing = YES;
+    self.tableView.dataSource = self;
+    self.tableView.delegate   = self;
+    self.tableView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self.view addSubview:self.tableView];
+    if (!self.restoreMode) [self setupNormalNav];
     [self reloadBackups];
 }
 
-- (void)buildUI {
-    CGFloat W = self.view.bounds.size.width;
-    CGFloat H = self.view.bounds.size.height;
-    CGFloat barH = 56;
-    self.tableView = [[UITableView alloc] initWithFrame:CGRectMake(0, 0, W, H - barH - (self.navigationController ? 88 : 0))
-        style:UITableViewStylePlain];
-    self.tableView.backgroundColor = CLR_BG;
-    self.tableView.separatorColor = CLR_SEL;
-    self.tableView.dataSource = self;
-    self.tableView.delegate   = self;
-    [self.view addSubview:self.tableView];
-
-    UIView *bar = [[UIView alloc] initWithFrame:CGRectMake(0, H - barH - 34, W, barH + 34)];
-    bar.backgroundColor = CLR_CARD;
-    [self.view addSubview:bar];
-
-    CGFloat btnY = 8, btnH = 40;
-    UIButton *closeBtn = [self makeBarButton:@"关闭" color:CLR_DIM];
-    closeBtn.frame = CGRectMake(12, btnY, 80, btnH);
-    [closeBtn addTarget:self action:@selector(onClose) forControlEvents:UIControlEventTouchUpInside];
-    [bar addSubview:closeBtn];
-
-    if (!self.restoreMode) {
-        UIButton *del = [self makeBarButton:@"删除" color:CLR_RED];
-        del.frame = CGRectMake(W - 12 - 80 - 8 - 80, btnY, 80, btnH);
-        [del addTarget:self action:@selector(onDelete) forControlEvents:UIControlEventTouchUpInside];
-        [bar addSubview:del];
-    }
-
-    CGFloat restoreX = W - 12 - 80;
-    UIButton *restore = [self makeBarButton:@"还原" color:CLR_GRN];
-    restore.frame = CGRectMake(restoreX, btnY, 80, btnH);
-    [restore addTarget:self action:@selector(onRestore) forControlEvents:UIControlEventTouchUpInside];
-    [bar addSubview:restore];
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
 }
 
-- (UIButton *)makeBarButton:(NSString *)title color:(UIColor *)color {
-    UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
-    b.backgroundColor = color;
-    [b setTitle:title forState:UIControlStateNormal];
-    [b setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    b.titleLabel.font = [UIFont systemFontOfSize:14];
-    b.layer.cornerRadius = 10;
-    return b;
+- (void)setupNormalNav {
+    self.navigationItem.leftBarButtonItem  = nil;
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+        initWithTitle:@"编辑" style:UIBarButtonItemStylePlain
+        target:self action:@selector(onToggleEdit)];
 }
 
 - (void)reloadBackups {
     self.backups = [[[ProfileManager shared] listBackups] mutableCopy];
     [self.tableView reloadData];
-    self.selected = nil;
 }
 
-// ── TableView ──────────────────────────────────────────────────────────────
-- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)sec {
-    return self.backups.count;
-}
-
-- (CGFloat)tableView:(UITableView *)tv heightForRowAtIndexPath:(NSIndexPath *)ip {
-    return 68;
-}
+// ── TableView ─────────────────────────────────────────────────────────────
+- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)s { return self.backups.count; }
+- (CGFloat)tableView:(UITableView *)tv heightForRowAtIndexPath:(NSIndexPath *)ip { return 64; }
 
 - (UITableViewCell *)tableView:(UITableView *)tv cellForRowAtIndexPath:(NSIndexPath *)ip {
     UITableViewCell *cell = [tv dequeueReusableCellWithIdentifier:@"C"];
     if (!cell) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"C"];
-        cell.backgroundColor = CLR_BG;
-        cell.textLabel.textColor = [UIColor whiteColor];
-        cell.textLabel.font = [UIFont systemFontOfSize:14];
+        cell.backgroundColor = [UIColor whiteColor];
+        cell.textLabel.font  = [UIFont boldSystemFontOfSize:15];
         cell.detailTextLabel.textColor = CLR_SUB;
         cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
-        cell.detailTextLabel.numberOfLines = 2;
-        cell.selectedBackgroundView = [[UIView alloc] init];
-        cell.selectedBackgroundView.backgroundColor = CLR_SEL;
+        UIView *selBg = [[UIView alloc] init];
+        selBg.backgroundColor = CLR_SEL;
+        cell.selectedBackgroundView = selBg;
     }
     NSDictionary *b = self.backups[ip.row];
-    cell.textLabel.text = b[@"name"];
-    NSDate *date = b[@"date"];
-    NSString *ds = [NSDateFormatter localizedStringFromDate:date dateStyle:NSDateFormatterShortStyle timeStyle:NSDateFormatterShortStyle];
-    NSInteger sz = [b[@"size"] integerValue];
-    cell.detailTextLabel.text = [NSString stringWithFormat:@"IDFV: %@\n%@  %ldB", b[@"idfv"], ds, (long)sz];
-    cell.backgroundColor = [self.selected isEqual:ip] ? CLR_SEL : CLR_BG;
+    BOOL active = [b[@"active"] boolValue];
+    cell.textLabel.text      = active ? [NSString stringWithFormat:@"✓ %@", b[@"name"]] : b[@"name"];
+    cell.textLabel.textColor = active ? CLR_GRN : [UIColor blackColor];
+    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@  %@  %@ MB",
+        b[@"model"], b[@"date"], b[@"size_mb"]];
     return cell;
 }
 
 - (void)tableView:(UITableView *)tv didSelectRowAtIndexPath:(NSIndexPath *)ip {
-    self.selected = ip;
-    [tv reloadData];
+    if (self.isEditing) { [self syncDeleteTitle]; return; }
+    [tv deselectRowAtIndexPath:ip animated:YES];
+    NSDictionary *b = self.backups[ip.row];
+    NSString *msg = [NSString stringWithFormat:@"%@\n%@  %@ MB",
+        b[@"name"], b[@"date"], b[@"size_mb"]];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"切换备份"
+        message:msg preferredStyle:UIAlertControllerStyleAlert];
+    alert.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
+    [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"进入此备份" style:UIAlertActionStyleDefault
+        handler:^(UIAlertAction *_) {
+            NSError *e;
+            BOOL ok = [[ProfileManager shared] restoreFromPath:b[@"path"] error:&e];
+            if (ok) {
+                [ProfileManager shared].activeBackupName = b[@"name"];
+                [b[@"name"] writeToFile:@"/var/mobile/Documents/amap_backups/active_backup"
+                    atomically:YES encoding:NSUTF8StringEncoding error:nil];
+                [self reloadBackups];
+            }
+            [self showToast:ok ? @"已切换，请重启高德地图" : (e.localizedDescription ?: @"切换失败")
+                      color:ok ? CLR_GRN : CLR_RED];
+        }]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
-// ── Actions ───────────────────────────────────────────────────────────────
-- (void)onNewBackup {
-    NSError *e;
-    BOOL ok = [[ProfileManager shared] backupWithError:&e];
-    [self showToast:ok ? @"备份成功" : (e.localizedDescription ?: @"备份失败")
-              color:ok ? CLR_GRN : CLR_RED];
-    if (ok) [self reloadBackups];
+- (void)tableView:(UITableView *)tv didDeselectRowAtIndexPath:(NSIndexPath *)ip {
+    if (self.isEditing) [self syncDeleteTitle];
 }
 
-- (void)onRestore {
-    if (!self.selected) { [self showToast:@"请先选择备份" color:CLR_RED]; return; }
-    NSDictionary *b = self.backups[self.selected.row];
-    NSError *e;
-    BOOL ok = [[ProfileManager shared] restoreFromPath:b[@"path"] error:&e];
-    [self showToast:ok ? @"还原成功" : (e.localizedDescription ?: @"还原失败")
-              color:ok ? CLR_GRN : CLR_RED];
+// ── 编辑模式 ──────────────────────────────────────────────────────────────
+- (void)onToggleEdit {
+    self.isEditing = !self.isEditing;
+    [self.tableView setEditing:self.isEditing animated:YES];
+    if (!self.isEditing) { [self setupNormalNav]; return; }
+
+    UIBarButtonItem *done = [[UIBarButtonItem alloc]
+        initWithTitle:@"完成" style:UIBarButtonItemStyleDone
+        target:self action:@selector(onToggleEdit)];
+    self.deleteNavBtn = [[UIBarButtonItem alloc]
+        initWithTitle:@"删除" style:UIBarButtonItemStylePlain
+        target:self action:@selector(onDelete)];
+    self.deleteNavBtn.tintColor = CLR_RED;
+    self.navigationItem.rightBarButtonItems = @[done, self.deleteNavBtn];
+
+    UIBarButtonItem *selAll = [[UIBarButtonItem alloc]
+        initWithTitle:@"全选" style:UIBarButtonItemStylePlain
+        target:self action:@selector(onSelectAll)];
+    selAll.tintColor = CLR_BLUE;
+    self.navigationItem.leftBarButtonItem = selAll;
+}
+
+- (void)syncDeleteTitle {
+    NSUInteger n = self.tableView.indexPathsForSelectedRows.count;
+    self.deleteNavBtn.title = n > 0
+        ? [NSString stringWithFormat:@"删除(%lu)", (unsigned long)n] : @"删除";
+    BOOL allSel = n == (NSUInteger)[self.tableView numberOfRowsInSection:0];
+    self.navigationItem.leftBarButtonItem.title = allSel ? @"取消全选" : @"全选";
+}
+
+- (void)onSelectAll {
+    NSInteger total = [self.tableView numberOfRowsInSection:0];
+    BOOL allSel = (NSInteger)self.tableView.indexPathsForSelectedRows.count == total;
+    for (NSInteger i = 0; i < total; i++) {
+        NSIndexPath *ip = [NSIndexPath indexPathForRow:i inSection:0];
+        if (allSel) [self.tableView deselectRowAtIndexPath:ip animated:NO];
+        else [self.tableView selectRowAtIndexPath:ip animated:NO
+            scrollPosition:UITableViewScrollPositionNone];
+    }
+    [self syncDeleteTitle];
 }
 
 - (void)onDelete {
-    if (!self.selected) { [self showToast:@"请先选择备份" color:CLR_RED]; return; }
-    NSDictionary *b = self.backups[self.selected.row];
-    NSError *e;
-    [[NSFileManager defaultManager] removeItemAtPath:b[@"path"] error:&e];
-    [self showToast:e ? (e.localizedDescription ?: @"删除失败") : @"已删除"
-              color:e ? CLR_RED : CLR_GRN];
-    if (!e) [self reloadBackups];
+    NSArray *selected = self.tableView.indexPathsForSelectedRows;
+    if (!selected.count) { [self showToast:@"请先选择要删除的备份" color:CLR_RED]; return; }
+    NSUInteger cnt = selected.count;
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:@"确认删除"
+        message:[NSString stringWithFormat:@"将删除 %lu 个备份，不可恢复", (unsigned long)cnt]
+        preferredStyle:UIAlertControllerStyleAlert];
+    alert.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
+    [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"删除" style:UIAlertActionStyleDestructive
+        handler:^(UIAlertAction *_) {
+            NSArray *desc = [selected sortedArrayUsingComparator:^(NSIndexPath *a, NSIndexPath *b) {
+                return a.row < b.row ? NSOrderedDescending : NSOrderedAscending;
+            }];
+            for (NSIndexPath *ip in desc) {
+                [[ProfileManager shared] deleteBackupAtPath:self.backups[ip.row][@"path"] error:nil];
+                [self.backups removeObjectAtIndex:ip.row];
+            }
+            [self.tableView reloadData];
+            [self showToast:[NSString stringWithFormat:@"已删除 %lu 个备份", (unsigned long)cnt]
+                      color:CLR_GRN];
+            [self onToggleEdit];
+        }]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
-
-- (void)onClose { [self.navigationController popViewControllerAnimated:YES]; }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
 - (void)showToast:(NSString *)msg color:(UIColor *)color {
     [self.toastView removeFromSuperview];
-    UIView *t = [[UIView alloc] initWithFrame:CGRectMake(20, self.view.bounds.size.height - 200,
-        self.view.bounds.size.width - 40, 44)];
+    UIView *t = [[UIView alloc] initWithFrame:CGRectMake(20,
+        self.view.bounds.size.height - 120, self.view.bounds.size.width - 40, 44)];
     t.backgroundColor = color; t.layer.cornerRadius = 10; t.alpha = 0;
     UILabel *l = [[UILabel alloc] initWithFrame:CGRectInset(t.bounds, 10, 4)];
     l.text = msg; l.textColor = [UIColor whiteColor];

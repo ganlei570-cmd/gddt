@@ -1,17 +1,17 @@
 #import "ProfileManager.h"
+#import <UIKit/UIKit.h>
+#import <sys/sysctl.h>
 
-static NSString *const kDir    = @"/var/mobile/Documents/amap_profiles";
-static NSString *const kActive = @"/var/mobile/Documents/amap_profiles/active.json";
+static NSString *const kActive     = @"/var/mobile/Documents/amap_profiles/active.json";
+static NSString *const kProfileDir = @"/var/mobile/Documents/amap_profiles";
+static NSString *const kBackupDir  = @"/var/mobile/Documents/amap_backups";
+static NSString *const kActivePtr  = @"/var/mobile/Documents/amap_backups/active_backup";
 
-// keychain 条目："service/account" 格式，与 tweak profile.mm 匹配
 static NSArray<NSString *> *kcKeys(void) {
     return @[
-        @"com.autonavi.amap/udid",
-        @"com.autonavi.amap/vimsi",
-        @"com.autonavi.amap/vimei",
-        @"com.autonavi.amap/tid",
-        @"com.autonavi.amap/public_key",
-        @"gd_amap/gd_amap",
+        @"com.autonavi.amap/udid",   @"com.autonavi.amap/vimsi",
+        @"com.autonavi.amap/vimei",  @"com.autonavi.amap/tid",
+        @"com.autonavi.amap/public_key", @"gd_amap/gd_amap",
         @"com.amap.adiu.key/com.amap.adiu.key",
         @"0.umid_v1/com.autonavi.amap",
         @"PNS_UniqueId_com.autonavi.amap/PNS_UniqueId_com.autonavi.amap",
@@ -28,44 +28,211 @@ static NSArray<NSString *> *kcKeys(void) {
 
 - (void)reload {
     NSData *d = [NSData dataWithContentsOfFile:kActive];
-    if (!d) return;
-    NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+    NSDictionary *j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
     self.activeIdfv = j[@"idfv"] ?: @"";
+    self.activeBackupName = [[NSString alloc] initWithContentsOfFile:kActivePtr
+        encoding:NSUTF8StringEncoding error:nil] ?: @"";
 }
 
-// ── 生成新 profile (格式与 spoof.js BUILTIN_PROFILE 完全一致) ─────────────
 - (NSDictionary *)generateProfile {
     NSMutableDictionary *kc = [NSMutableDictionary dictionary];
     for (NSString *k in kcKeys()) kc[k] = @"CLEAR";
-
-    // NSNull → JSON null，tweak 读到 null 即清除该 preference
     NSMutableDictionary *ud = [NSMutableDictionary dictionary];
-    for (NSString *k in @[@"__AMAP_APP_FIRST__", @"appInitMd5",
-                          @"login_credit", @"ATAuthSDK_POP_com.autonavi.amap"])
+    // __AMAP_APP_FIRST__ / appInitMd5 由文件删除清理，不放入 clear 列表，
+    // 避免 hook 层每次拦截触发"首次启动"重复信号
+    for (NSString *k in @[@"login_credit", @"ATAuthSDK_POP_com.autonavi.amap"])
         ud[k] = [NSNull null];
-
-    return @{
-        @"idfv": [NSUUID UUID].UUIDString.uppercaseString,
-        @"idfa": @"00000000-0000-0000-0000-000000000000",
-        @"keychain":      kc,
-        @"userdefaults":  ud,
-    };
+    char machine[64] = {0};
+    size_t sz = sizeof(machine);
+    sysctlbyname("hw.machine", machine, &sz, NULL, 0);
+    NSString *machineStr = machine[0] ? @(machine) : @"iPhone13,2";
+    NSArray *carriers = @[
+        @{@"carrier_name":@"中国移动",@"carrier_mcc":@"460",@"carrier_mnc":@"00",@"carrier_iso":@"cn"},
+        @{@"carrier_name":@"中国移动",@"carrier_mcc":@"460",@"carrier_mnc":@"02",@"carrier_iso":@"cn"},
+        @{@"carrier_name":@"中国联通",@"carrier_mcc":@"460",@"carrier_mnc":@"01",@"carrier_iso":@"cn"},
+        @{@"carrier_name":@"中国联通",@"carrier_mcc":@"460",@"carrier_mnc":@"06",@"carrier_iso":@"cn"},
+        @{@"carrier_name":@"中国电信",@"carrier_mcc":@"460",@"carrier_mnc":@"03",@"carrier_iso":@"cn"},
+        @{@"carrier_name":@"中国电信",@"carrier_mcc":@"460",@"carrier_mnc":@"05",@"carrier_iso":@"cn"},
+    ];
+    NSDictionary *carrier = carriers[arc4random_uniform((uint32_t)carriers.count)];
+    NSMutableDictionary *profile = [@{
+        @"idfv":    [NSUUID UUID].UUIDString.uppercaseString,
+        @"idfa":    @"00000000-0000-0000-0000-000000000000",
+        @"machine": machineStr,
+        @"keychain": kc, @"userdefaults": ud,
+    } mutableCopy];
+    [profile addEntriesFromDictionary:carrier];
+    return [profile copy];
 }
 
-// ── 写入 active.json ──────────────────────────────────────────────────────
 - (BOOL)saveActive:(NSDictionary *)profile error:(NSError **)error {
-    [[NSFileManager defaultManager]
-        createDirectoryAtPath:kDir withIntermediateDirectories:YES attributes:nil error:nil];
+    [[NSFileManager defaultManager] createDirectoryAtPath:kProfileDir
+        withIntermediateDirectories:YES attributes:nil error:nil];
     NSData *data = [NSJSONSerialization dataWithJSONObject:profile
-                    options:NSJSONWritingPrettyPrinted error:error];
+        options:NSJSONWritingPrettyPrinted error:error];
     if (!data) return NO;
     BOOL ok = [data writeToFile:kActive options:NSDataWritingAtomic error:error];
     if (ok) self.activeIdfv = profile[@"idfv"] ?: @"";
     return ok;
 }
 
-- (BOOL)newMachineWithError:(NSError **)error {
-    return [self saveActive:[self generateProfile] error:error];
+- (NSString *)findAmapContainer {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *base = @"/var/mobile/Containers/Data/Application";
+    for (NSString *uuid in [fm contentsOfDirectoryAtPath:base error:nil]) {
+        NSString *plist = [NSString stringWithFormat:
+            @"%@/%@/.com.apple.mobile_container_manager.metadata.plist", base, uuid];
+        NSDictionary *meta = [NSDictionary dictionaryWithContentsOfFile:plist];
+        if ([meta[@"MCMMetadataIdentifier"] isEqualToString:@"com.autonavi.amap"])
+            return [base stringByAppendingPathComponent:uuid];
+    }
+    return nil;
+}
+
+- (unsigned long long)dirSize:(NSString *)path {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSDirectoryEnumerator *e = [fm enumeratorAtPath:path];
+    unsigned long long total = 0;
+    NSString *f;
+    while ((f = [e nextObject])) {
+        NSDictionary *attr = [fm attributesOfItemAtPath:
+            [path stringByAppendingPathComponent:f] error:nil];
+        if ([attr[NSFileType] isEqualToString:NSFileTypeRegular])
+            total += [attr[NSFileSize] unsignedLongLongValue];
+    }
+    return total;
+}
+
+- (void)copyDir:(NSString *)src to:(NSString *)dst {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    [fm createDirectoryAtPath:dst withIntermediateDirectories:YES attributes:nil error:nil];
+    for (NSString *item in [fm contentsOfDirectoryAtPath:src error:nil]) {
+        NSString *s = [src stringByAppendingPathComponent:item];
+        NSString *d = [dst stringByAppendingPathComponent:item];
+        BOOL isDir = NO;
+        [fm fileExistsAtPath:s isDirectory:&isDir];
+        if (isDir) [self copyDir:s to:d];
+        else [fm copyItemAtPath:s toPath:d error:nil];
+    }
+}
+
+- (NSString *)createBackupWithProfile:(NSDictionary *)profile container:(NSString *)container {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    [fm createDirectoryAtPath:kBackupDir withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSInteger maxNum = 0;
+    for (NSString *f in [fm contentsOfDirectoryAtPath:kBackupDir error:nil]) {
+        if (![f hasPrefix:@"高德地图_"]) continue;
+        NSInteger n = [[f substringFromIndex:5] integerValue];
+        if (n > maxNum) maxNum = n;
+    }
+    NSString *name = [NSString stringWithFormat:@"高德地图_%05ld", (long)(maxNum + 1)];
+    NSString *dir = [kBackupDir stringByAppendingPathComponent:name];
+    [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSData *pd = [NSJSONSerialization dataWithJSONObject:profile options:NSJSONWritingPrettyPrinted error:nil];
+    [pd writeToFile:[dir stringByAppendingPathComponent:@"profile.json"] atomically:YES];
+
+    if (container) {
+        NSString *dataDst = [dir stringByAppendingPathComponent:@"amap_data"];
+        for (NSString *sub in @[@"Documents", @"Library/Caches", @"Library/Application Support"]) {
+            NSString *src = [container stringByAppendingPathComponent:sub];
+            if ([fm fileExistsAtPath:src])
+                [self copyDir:src to:[dataDst stringByAppendingPathComponent:sub]];
+        }
+        NSString *prefsDst = [dataDst stringByAppendingPathComponent:@"Preferences"];
+        [fm createDirectoryAtPath:prefsDst withIntermediateDirectories:YES attributes:nil error:nil];
+        NSString *prefsBase = @"/var/mobile/Library/Preferences";
+        for (NSString *f in [fm contentsOfDirectoryAtPath:prefsBase error:nil]) {
+            if (![f hasPrefix:@"com.autonavi.amap"] && ![f hasPrefix:@"com.amap"]) continue;
+            [fm copyItemAtPath:[prefsBase stringByAppendingPathComponent:f]
+                toPath:[prefsDst stringByAppendingPathComponent:f] error:nil];
+        }
+    }
+
+    unsigned long long sizeMB = [self dirSize:dir] / (1024 * 1024);
+    UIDevice *dev = [UIDevice currentDevice];
+    NSDateFormatter *fmt = [NSDateFormatter new];
+    fmt.dateFormat = @"yyyy-MM-dd HH:mm";
+    NSDictionary *meta = @{
+        @"model": dev.model ?: @"iPhone",
+        @"name":  dev.name  ?: @"iPhone",
+        @"ios":   dev.systemVersion ?: @"",
+        @"date":  [fmt stringFromDate:[NSDate date]],
+        @"size_mb": @(sizeMB),
+        @"idfv":  profile[@"idfv"] ?: @"",
+    };
+    [[NSJSONSerialization dataWithJSONObject:meta options:0 error:nil]
+        writeToFile:[dir stringByAppendingPathComponent:@"meta.json"] atomically:YES];
+    return name;
+}
+
+- (NSArray<NSString *> *)findAmapAppGroups {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *base = @"/var/mobile/Containers/Shared/AppGroup";
+    NSMutableArray *result = [NSMutableArray array];
+    for (NSString *uuid in [fm contentsOfDirectoryAtPath:base error:nil]) {
+        NSString *plist = [NSString stringWithFormat:
+            @"%@/%@/.com.apple.mobile_container_manager.metadata.plist", base, uuid];
+        NSDictionary *meta = [NSDictionary dictionaryWithContentsOfFile:plist];
+        NSString *ident = meta[@"MCMMetadataIdentifier"] ?: @"";
+        if ([ident containsString:@"amap"] || [ident containsString:@"autonavi"])
+            [result addObject:[base stringByAppendingPathComponent:uuid]];
+    }
+    return result;
+}
+
+- (void)clearDir:(NSString *)path fm:(NSFileManager *)fm {
+    for (NSString *item in [fm contentsOfDirectoryAtPath:path error:nil])
+        [fm removeItemAtPath:[path stringByAppendingPathComponent:item] error:nil];
+}
+
+- (void)clearAmapDataInContainer:(NSString *)container {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    [self clearDir:[container stringByAppendingPathComponent:@"Documents"] fm:fm];
+    [self clearDir:[container stringByAppendingPathComponent:@"tmp"] fm:fm];
+    NSString *lib = [container stringByAppendingPathComponent:@"Library"];
+    for (NSString *sub in @[@"Caches", @"Application Support", @"WebKit", @"SplashBoard"]) {
+        [self clearDir:[lib stringByAppendingPathComponent:sub] fm:fm];
+    }
+    NSString *prefsBase = @"/var/mobile/Library/Preferences";
+    for (NSString *f in [fm contentsOfDirectoryAtPath:prefsBase error:nil]) {
+        if (![f hasPrefix:@"com.autonavi.amap"] && ![f hasPrefix:@"com.amap"]) continue;
+        [fm removeItemAtPath:[prefsBase stringByAppendingPathComponent:f] error:nil];
+    }
+    for (NSString *group in [self findAmapAppGroups])
+        [self clearDir:[group stringByAppendingPathComponent:@"Library"] fm:fm];
+}
+
+- (void)newMachineAsync:(void(^)(BOOL done, NSString *status, NSError *err))cb {
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        void(^prog)(NSString *) = ^(NSString *s) {
+            dispatch_async(dispatch_get_main_queue(), ^{ cb(NO, s, nil); });
+        };
+
+        NSDictionary *profile = [self generateProfile];
+        NSString *container   = [self findAmapContainer];
+        NSString *backupName  = nil;
+
+        if (container) {
+            prog(@"正在备份高德数据...");
+            backupName = [self createBackupWithProfile:profile container:container];
+            prog(@"正在清理高德数据...");
+            [self clearAmapDataInContainer:container];
+        } else {
+            prog(@"未找到高德数据，直接生成新指纹...");
+        }
+
+        prog(@"正在写入新指纹...");
+        NSError *err = nil;
+        [self saveActive:profile error:&err];
+
+        if (!err && backupName) {
+            self.activeBackupName = backupName;
+            [backupName writeToFile:kActivePtr atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{ cb(YES, @"完成", err); });
+    });
 }
 
 - (BOOL)clearKeychainWithError:(NSError **)error {
@@ -80,48 +247,41 @@ static NSArray<NSString *> *kcKeys(void) {
     return [self saveActive:p error:error];
 }
 
-// ── 备份列表 ──────────────────────────────────────────────────────────────
 - (NSArray<NSDictionary *> *)listBackups {
     NSFileManager *fm = [NSFileManager defaultManager];
     NSMutableArray *result = [NSMutableArray array];
-    for (NSString *f in [fm contentsOfDirectoryAtPath:kDir error:nil]) {
-        if (![f hasPrefix:@"高德地图_"] || ![f hasSuffix:@".json"]) continue;
-        NSString *full = [kDir stringByAppendingPathComponent:f];
-        NSDictionary *attr = [fm attributesOfItemAtPath:full error:nil];
-        NSData *d = [NSData dataWithContentsOfFile:full];
-        NSString *idfv = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil][@"idfv"] ?: @"" : @"";
-        NSDateFormatter *fmt = [NSDateFormatter new];
-        fmt.dateFormat = @"MM-dd HH:mm";
+    for (NSString *name in [fm contentsOfDirectoryAtPath:kBackupDir error:nil]) {
+        if (![name hasPrefix:@"高德地图_"]) continue;
+        NSString *dir = [kBackupDir stringByAppendingPathComponent:name];
+        BOOL isDir = NO;
+        [fm fileExistsAtPath:dir isDirectory:&isDir];
+        if (!isDir) continue;
+        NSData *md = [NSData dataWithContentsOfFile:[dir stringByAppendingPathComponent:@"meta.json"]];
+        NSDictionary *meta = md ? [NSJSONSerialization JSONObjectWithData:md options:0 error:nil] : @{};
         [result addObject:@{
-            @"name": [f substringToIndex:f.length - 5],
-            @"path": full,
-            @"idfv": idfv.length > 18 ? [idfv substringToIndex:18] : idfv,
-            @"date": [fmt stringFromDate:attr[NSFileCreationDate] ?: [NSDate date]],
-            @"size": @([attr[NSFileSize] unsignedLongLongValue] / 1024),
+            @"name":    name,
+            @"path":    dir,
+            @"idfv":    meta[@"idfv"]    ?: @"",
+            @"model":   meta[@"model"]   ?: @"iPhone",
+            @"date":    meta[@"date"]    ?: @"",
+            @"size_mb": meta[@"size_mb"] ?: @0,
+            @"active":  @([name isEqualToString:self.activeBackupName]),
         }];
     }
-    return [result sortedArrayUsingComparator:^(id a, id b) {
-        return [b[@"date"] compare:a[@"date"]];
+    return [result sortedArrayUsingComparator:^(NSDictionary *a, NSDictionary *b) {
+        BOOL aAct = [a[@"active"] boolValue], bAct = [b[@"active"] boolValue];
+        if (aAct != bAct) return aAct ? NSOrderedAscending : NSOrderedDescending;
+        return [a[@"name"] compare:b[@"name"]];
     }];
 }
 
-- (BOOL)backupWithError:(NSError **)error {
-    NSData *d = [NSData dataWithContentsOfFile:kActive];
-    if (!d) {
-        if (error) *error = [NSError errorWithDomain:@"PM" code:1
-            userInfo:@{NSLocalizedDescriptionKey: @"无 active 档案，请先执行一键新机"}];
-        return NO;
-    }
-    [[NSFileManager defaultManager]
-        createDirectoryAtPath:kDir withIntermediateDirectories:YES attributes:nil error:nil];
-    NSUInteger n = [self listBackups].count + 1;
-    NSString *dest = [kDir stringByAppendingPathComponent:
-        [NSString stringWithFormat:@"高德地图_%05lu.json", (unsigned long)n]];
-    return [d writeToFile:dest options:NSDataWritingAtomic error:error];
+- (BOOL)deleteBackupAtPath:(NSString *)path error:(NSError **)error {
+    return [[NSFileManager defaultManager] removeItemAtPath:path error:error];
 }
 
 - (BOOL)restoreFromPath:(NSString *)path error:(NSError **)error {
-    NSData *d = [NSData dataWithContentsOfFile:path options:0 error:error];
+    NSString *profilePath = [path stringByAppendingPathComponent:@"profile.json"];
+    NSData *d = [NSData dataWithContentsOfFile:profilePath options:0 error:error];
     if (!d) return NO;
     NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:error];
     if (!j) return NO;

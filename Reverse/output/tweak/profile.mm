@@ -1,12 +1,18 @@
 #import "profile.h"
+#import "tlog.h"
 
 NSString *gIDFV = @"A1B2C3D4-E5F6-7890-ABCD-EF1234567890";
 NSString *gIDFA = @"00000000-0000-0000-0000-000000000000";
-NSSet<NSString *> *gKeychainClearSet;
+NSString *gMachine    = nil;
+NSString *gCarrierName = @"中国移动";
+NSString *gCarrierMCC  = @"460";
+NSString *gCarrierMNC  = @"00";
+NSString *gCarrierISO  = @"cn";
+NSMutableSet<NSString *> *gKeychainClearSet;
 NSSet<NSString *> *gPrefClearSet;
 
-static NSSet<NSString *> *defaultKCSet(void) {
-    return [NSSet setWithObjects:
+static NSMutableSet<NSString *> *defaultKCSet(void) {
+    return [NSMutableSet setWithObjects:
         @"com.autonavi.amap/udid",    @"com.autonavi.amap/vimsi",
         @"com.autonavi.amap/vimei",   @"com.autonavi.amap/tid",
         @"com.autonavi.amap/public_key", @"gd_amap/gd_amap",
@@ -16,8 +22,9 @@ static NSSet<NSString *> *defaultKCSet(void) {
 }
 
 static NSSet<NSString *> *defaultPrefSet(void) {
+    // __AMAP_APP_FIRST__ / appInitMd5 已由 ProfileManager 文件删除清理，
+    // 不需要在 hook 层拦截，否则每次启动都触发"首次启动"逻辑 → 风控异常信号
     return [NSSet setWithObjects:
-        @"__AMAP_APP_FIRST__", @"appInitMd5",
         @"login_credit", @"ATAuthSDK_POP_com.autonavi.amap", nil];
 }
 
@@ -33,11 +40,11 @@ static NSDictionary *diskProfile(void) {
     return [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
 }
 
-static NSSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
+static NSMutableSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
     NSMutableSet *s = [NSMutableSet set];
     for (NSString *k in kc)
         if ([kc[k] isEqualToString:@"CLEAR"]) [s addObject:k];
-    return [s copy];
+    return s;
 }
 
 static NSSet<NSString *> *prefSetFromDict(NSDictionary *ud) {
@@ -51,9 +58,18 @@ void loadProfile(void) {
     gKeychainClearSet = defaultKCSet();
     gPrefClearSet = defaultPrefSet();
     NSDictionary *p = diskProfile();
-    if (!p) return;
-    if (p[@"idfv"]) gIDFV = p[@"idfv"];
-    if (p[@"idfa"]) gIDFA = p[@"idfa"];
-    if (p[@"keychain"]) gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
+    if (!p) {
+        tlog(@"profile_fail", @{@"reason": @"file_not_found"});
+        return;
+    }
+    if (p[@"idfv"])    gIDFV = p[@"idfv"];
+    if (p[@"idfa"])    gIDFA = p[@"idfa"];
+    if (p[@"machine"]) gMachine = p[@"machine"];
+    if (p[@"carrier_name"]) gCarrierName = p[@"carrier_name"];
+    if (p[@"carrier_mcc"])  gCarrierMCC  = p[@"carrier_mcc"];
+    if (p[@"carrier_mnc"])  gCarrierMNC  = p[@"carrier_mnc"];
+    if (p[@"carrier_iso"])  gCarrierISO  = p[@"carrier_iso"];
+    if (p[@"keychain"])     gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
     if (p[@"userdefaults"]) gPrefClearSet = prefSetFromDict(p[@"userdefaults"]);
+    tlog(@"profile_ok", @{@"idfv_prefix": [gIDFV substringToIndex:MIN(8u, gIDFV.length)]});
 }

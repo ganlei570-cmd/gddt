@@ -9,6 +9,7 @@
 #import "bypass.h"
 #import "spoof.h"
 #import "clean.h"
+#import "tlog.h"
 
 // ── UIKit hooks（UIKit 必定已加载，无需 %group）────────────────
 %hook UIDevice
@@ -21,12 +22,21 @@
 %end
 
 // ── AdSupport hook — 延迟到 %ctor 内 dlopen 后再 %init ────────
-// ASIdentifierManager 可能懒加载，必须在 AdSupport 加载后再注册 hook
 %group GAdSupport
 %hook ASIdentifierManager
 - (NSUUID *)advertisingIdentifier {
     return [[NSUUID alloc] initWithUUIDString:gIDFA];
 }
+%end
+%end
+
+// ── CoreTelephony hook — 运营商指纹伪装 ──────────────────────────
+%group GCoreTelephony
+%hook CTCarrier
+- (NSString *)carrierName        { return gCarrierName; }
+- (NSString *)mobileCountryCode  { return gCarrierMCC; }
+- (NSString *)mobileNetworkCode  { return gCarrierMNC; }
+- (NSString *)isoCountryCode     { return gCarrierISO; }
 %end
 %end
 
@@ -37,12 +47,17 @@
     @autoreleasepool {
         NSString *bid = [[NSBundle mainBundle] bundleIdentifier];
         if ([bid isEqualToString:@"com.autonavi.amap"]) {
+            [@"1" writeToFile:@"/tmp/amaptweak_loaded" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+            tlog(@"tweak_loaded", nil);
             loadProfile();
             installBypassHooks();
             installSpoofHooks();
+            initCleanHooks();
             %init;
             dlopen("/System/Library/Frameworks/AdSupport.framework/AdSupport", RTLD_NOW);
             %init(GAdSupport);
+            dlopen("/System/Library/Frameworks/CoreTelephony.framework/CoreTelephony", RTLD_NOW);
+            %init(GCoreTelephony);
         }
     }
 }

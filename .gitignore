@@ -19,3 +19,37 @@ Thumbs.db
 # Claude 内部
 .claude/
 .spec-workflow/
+
+# 崩溃日志 / 诊断
+*.ips
+*.ips.ca.synced
+*.synced
+
+# 临时目录
+$STAGE/
+.playwright-mcp/
+tmp_*/
+ipa_extract/
+ipa_latest/
+ipa_latest.zip
+tmp_ipa_check/
+Baseband/
+Retired/
+captures/
+xbzhan_api/
+
+# 工具安装包
+files/aisi_setup.exe
+files/iTunes64Setup.exe
+
+# 构建脚本（一次性）
+build_deb.py
+build_ipa.py
+deploy.py
+check_pkg.py
+register.log
+
+# 其他
+AmapNewMachine*.ipa
+AmapNewMachine*.zip
+AmapNewMachine_check.zip

@@ -8,6 +8,12 @@ static NSString *const kProfileDir = @"/var/mobile/Documents/amap_profiles";
 static NSString *const kBackupDir  = @"/var/mobile/Documents/amap_backups";
 static NSString *const kActivePtr  = @"/var/mobile/Documents/amap_backups/active_backup";
 
+static NSArray<NSString *> *kUserDataFiles(void) {
+    return @[@"favoriteIndex.plist", @"cachedSearchData.plist",
+             @"cachedSearchHomeData.plist", @"search_home.plist",
+             @"PoiDetailUserBehavior.plist"];
+}
+
 static NSArray<NSString *> *kcKeys(void) {
     return @[
         @"com.autonavi.amap/udid",   @"com.autonavi.amap/vimsi",
@@ -131,19 +137,13 @@ static NSArray<NSString *> *kcKeys(void) {
     [pd writeToFile:[dir stringByAppendingPathComponent:@"profile.json"] atomically:YES];
 
     if (container) {
-        NSString *dataDst = [dir stringByAppendingPathComponent:@"amap_data"];
-        for (NSString *sub in @[@"Documents", @"Library/Caches", @"Library/Application Support"]) {
-            NSString *src = [container stringByAppendingPathComponent:sub];
-            if ([fm fileExistsAtPath:src])
-                [self copyDir:src to:[dataDst stringByAppendingPathComponent:sub]];
-        }
-        NSString *prefsDst = [dataDst stringByAppendingPathComponent:@"Preferences"];
+        NSString *prefsSrc = [container stringByAppendingPathComponent:@"Library/Preferences"];
+        NSString *prefsDst = [dir stringByAppendingPathComponent:@"user_data"];
         [fm createDirectoryAtPath:prefsDst withIntermediateDirectories:YES attributes:nil error:nil];
-        NSString *prefsBase = @"/var/mobile/Library/Preferences";
-        for (NSString *f in [fm contentsOfDirectoryAtPath:prefsBase error:nil]) {
-            if (![f hasPrefix:@"com.autonavi.amap"] && ![f hasPrefix:@"com.amap"]) continue;
-            [fm copyItemAtPath:[prefsBase stringByAppendingPathComponent:f]
-                toPath:[prefsDst stringByAppendingPathComponent:f] error:nil];
+        for (NSString *f in kUserDataFiles()) {
+            NSString *src = [prefsSrc stringByAppendingPathComponent:f];
+            if ([fm fileExistsAtPath:src])
+                [fm copyItemAtPath:src toPath:[prefsDst stringByAppendingPathComponent:f] error:nil];
         }
     }
 
@@ -235,6 +235,9 @@ static NSArray<NSString *> *kcKeys(void) {
             backupName = [self createBackupWithProfile:profile container:container];
             prog(@"正在清理高德数据...");
             [self clearAmapDataInContainer:container];
+            // 删除 allowed keychain 记录，让 tweak 下次启动对所有 amap key 全量拦截
+            [[NSFileManager defaultManager] removeItemAtPath:
+                @"/var/mobile/Documents/amap_profiles/kc_allowed.json" error:nil];
         } else {
             prog(@"未找到高德数据，直接生成新指纹...");
         }
@@ -301,7 +304,23 @@ static NSArray<NSString *> *kcKeys(void) {
     if (!d) return NO;
     NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:error];
     if (!j) return NO;
-    return [self saveActive:j error:error];
+    if (![self saveActive:j error:error]) return NO;
+    // restore user data (favorites/search history) to current container
+    NSString *container = [self findAmapContainer];
+    if (container) {
+        NSFileManager *fm = [NSFileManager defaultManager];
+        NSString *srcDir = [path stringByAppendingPathComponent:@"user_data"];
+        NSString *dstDir = [container stringByAppendingPathComponent:@"Library/Preferences"];
+        [fm createDirectoryAtPath:dstDir withIntermediateDirectories:YES attributes:nil error:nil];
+        for (NSString *f in kUserDataFiles()) {
+            NSString *src = [srcDir stringByAppendingPathComponent:f];
+            if (![fm fileExistsAtPath:src]) continue;
+            NSString *dst = [dstDir stringByAppendingPathComponent:f];
+            [fm removeItemAtPath:dst error:nil];
+            [fm copyItemAtPath:src toPath:dst error:nil];
+        }
+    }
+    return YES;
 }
 
 @end

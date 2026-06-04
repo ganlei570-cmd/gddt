@@ -15,17 +15,30 @@ static NSString *kcQueryKey(CFDictionaryRef q) {
     return [(__bridge NSString *)svc stringByAppendingFormat:@"/%@", (__bridge NSString *)acc];
 }
 
+static BOOL isAmapKey(NSString *key) {
+    return [key containsString:@"amap"] || [key containsString:@"autonavi"];
+}
+
+static BOOL shouldBlockKey(NSString *key) {
+    if (!key) return NO;
+    // always block keys in the explicit clear set (device identity keys)
+    if ([gKeychainClearSet containsObject:key]) return YES;
+    // block all amap/autonavi keys unless Gaode has written them this session
+    if (isAmapKey(key)) {
+        BOOL allowed;
+        @synchronized(gKeychainAllowedSet) { allowed = [gKeychainAllowedSet containsObject:key]; }
+        return !allowed;
+    }
+    return NO;
+}
+
 static OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemCopyMatching(CFDictionaryRef q, CFTypeRef *result) {
     NSString *key = kcQueryKey(q);
-    if (key) {
-        BOOL blocked;
-        @synchronized(gKeychainClearSet) { blocked = [gKeychainClearSet containsObject:key]; }
-        if (blocked) {
-            tlog(@"kc_blocked", @{@"key": key});
-            if (result) *result = NULL;
-            return errSecItemNotFound;
-        }
+    if (shouldBlockKey(key)) {
+        tlog(@"kc_blocked", @{@"key": key ?: @"nil"});
+        if (result) *result = NULL;
+        return errSecItemNotFound;
     }
     return orig_SecItemCopyMatching(q, result);
 }
@@ -34,8 +47,10 @@ static OSStatus (*orig_SecItemAdd)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemAdd(CFDictionaryRef attrs, CFTypeRef *result) {
     NSString *key = kcQueryKey(attrs);
     OSStatus r = orig_SecItemAdd(attrs, result);
-    if (r == errSecSuccess && key) {
-        @synchronized(gKeychainClearSet) { [gKeychainClearSet removeObject:key]; }
+    if (r == errSecSuccess && key && isAmapKey(key)) {
+        @synchronized(gKeychainAllowedSet) { [gKeychainAllowedSet addObject:key]; }
+        @synchronized(gKeychainClearSet)   { [gKeychainClearSet removeObject:key]; }
+        saveKeychainAllowed();
         tlog(@"kc_written", @{@"key": key});
     }
     return r;
@@ -45,8 +60,10 @@ static OSStatus (*orig_SecItemUpdate)(CFDictionaryRef, CFDictionaryRef);
 static OSStatus hook_SecItemUpdate(CFDictionaryRef q, CFDictionaryRef attrs) {
     NSString *key = kcQueryKey(q);
     OSStatus r = orig_SecItemUpdate(q, attrs);
-    if (r == errSecSuccess && key) {
-        @synchronized(gKeychainClearSet) { [gKeychainClearSet removeObject:key]; }
+    if (r == errSecSuccess && key && isAmapKey(key)) {
+        @synchronized(gKeychainAllowedSet) { [gKeychainAllowedSet addObject:key]; }
+        @synchronized(gKeychainClearSet)   { [gKeychainClearSet removeObject:key]; }
+        saveKeychainAllowed();
         tlog(@"kc_updated", @{@"key": key});
     }
     return r;

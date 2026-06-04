@@ -9,6 +9,17 @@ NSString *gCarrierMCC  = @"460";
 NSString *gCarrierMNC  = @"00";
 NSString *gCarrierISO  = @"cn";
 NSMutableSet<NSString *> *gKeychainClearSet;
+NSMutableSet<NSString *> *gKeychainAllowedSet;
+
+static NSString *const kAllowedPath = @"/var/mobile/Documents/amap_profiles/kc_allowed.json";
+
+void saveKeychainAllowed(void) {
+    @synchronized(gKeychainAllowedSet) {
+        NSArray *arr = gKeychainAllowedSet.allObjects;
+        NSData *d = [NSJSONSerialization dataWithJSONObject:arr options:0 error:nil];
+        [d writeToFile:kAllowedPath atomically:YES];
+    }
+}
 
 static NSMutableSet<NSString *> *defaultKCSet(void) {
     return [NSMutableSet setWithObjects:
@@ -42,6 +53,14 @@ static NSMutableSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
 
 void loadProfile(void) {
     gKeychainClearSet = defaultKCSet();
+    // load persisted allowed set (keys Gaode has written this session)
+    gKeychainAllowedSet = [NSMutableSet set];
+    NSData *ad = [NSData dataWithContentsOfFile:kAllowedPath];
+    if (ad) {
+        NSArray *arr = [NSJSONSerialization JSONObjectWithData:ad options:0 error:nil];
+        if ([arr isKindOfClass:[NSArray class]])
+            [gKeychainAllowedSet addObjectsFromArray:arr];
+    }
     NSDictionary *p = diskProfile();
     if (!p) {
         tlog(@"profile_fail", @{@"reason": @"file_not_found"});

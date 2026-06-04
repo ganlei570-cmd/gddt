@@ -197,7 +197,7 @@ static NSArray<NSString *> *kcKeys(void) {
         [fm removeItemAtPath:[prefsBase stringByAppendingPathComponent:f] error:nil];
     }
     for (NSString *group in [self findAmapAppGroups])
-        [self clearDir:[group stringByAppendingPathComponent:@"Library"] fm:fm];
+        [self clearDir:group fm:fm];
 }
 
 - (void)newMachineAsync:(void(^)(BOOL done, NSString *status, NSError *err))cb {

@@ -35,7 +35,7 @@ static NSArray<NSString *> *kcKeys(void) {
         encoding:NSUTF8StringEncoding error:nil] ?: @"";
 }
 
-- (NSDictionary *)generateProfileForRegion:(NSString *)region {
+- (NSDictionary *)generateProfile {
     NSMutableDictionary *kc = [NSMutableDictionary dictionary];
     for (NSString *k in kcKeys()) kc[k] = @"CLEAR";
     NSMutableDictionary *ud = [NSMutableDictionary dictionary];
@@ -58,7 +58,7 @@ static NSArray<NSString *> *kcKeys(void) {
     long long dFree  = dTotal / 100 * (20 + arc4random_uniform(41));
     uint8_t mb[6]; arc4random_buf(mb, sizeof(mb)); mb[0] = (mb[0] & 0xFE) | 0x02;
     NSString *wifiMac = [NSString stringWithFormat:@"%02x:%02x:%02x:%02x:%02x:%02x",mb[0],mb[1],mb[2],mb[3],mb[4],mb[5]];
-    NSArray *cnCarriers = @[
+    NSArray *carriers = @[
         @{@"carrier_name":@"中国移动",@"carrier_mcc":@"460",@"carrier_mnc":@"00",@"carrier_iso":@"cn"},
         @{@"carrier_name":@"中国移动",@"carrier_mcc":@"460",@"carrier_mnc":@"02",@"carrier_iso":@"cn"},
         @{@"carrier_name":@"中国联通",@"carrier_mcc":@"460",@"carrier_mnc":@"01",@"carrier_iso":@"cn"},
@@ -66,14 +66,7 @@ static NSArray<NSString *> *kcKeys(void) {
         @{@"carrier_name":@"中国电信",@"carrier_mcc":@"460",@"carrier_mnc":@"03",@"carrier_iso":@"cn"},
         @{@"carrier_name":@"中国电信",@"carrier_mcc":@"460",@"carrier_mnc":@"05",@"carrier_iso":@"cn"},
     ];
-    NSArray *hkCarriers = @[
-        @{@"carrier_name":@"CMHK",     @"carrier_mcc":@"454",@"carrier_mnc":@"12",@"carrier_iso":@"hk"},
-        @{@"carrier_name":@"SmarTone", @"carrier_mcc":@"454",@"carrier_mnc":@"06",@"carrier_iso":@"hk"},
-        @{@"carrier_name":@"3HK",      @"carrier_mcc":@"454",@"carrier_mnc":@"04",@"carrier_iso":@"hk"},
-        @{@"carrier_name":@"CSL",      @"carrier_mcc":@"454",@"carrier_mnc":@"00",@"carrier_iso":@"hk"},
-    ];
-    NSArray *carrierPool = [region isEqualToString:@"hk"] ? hkCarriers : cnCarriers;
-    NSDictionary *carrier = carrierPool[arc4random_uniform((uint32_t)carrierPool.count)];
+    NSDictionary *carrier = carriers[arc4random_uniform((uint32_t)carriers.count)];
     NSMutableDictionary *profile = [@{
         @"idfv":        [NSUUID UUID].UUIDString.uppercaseString,
         @"idfa":        @"00000000-0000-0000-0000-000000000000",
@@ -227,13 +220,13 @@ static NSArray<NSString *> *kcKeys(void) {
         [self clearDir:group fm:fm];
 }
 
-- (void)newMachineForRegion:(NSString *)region progress:(void(^)(BOOL done, NSString *status, NSError *err))cb {
+- (void)newMachineAsync:(void(^)(BOOL done, NSString *status, NSError *err))cb {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         void(^prog)(NSString *) = ^(NSString *s) {
             dispatch_async(dispatch_get_main_queue(), ^{ cb(NO, s, nil); });
         };
 
-        NSDictionary *profile = [self generateProfileForRegion:region];
+        NSDictionary *profile = [self generateProfile];
         NSString *container   = [self findAmapContainer];
         NSString *backupName  = nil;
 

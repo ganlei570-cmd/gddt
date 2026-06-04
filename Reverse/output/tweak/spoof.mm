@@ -39,7 +39,7 @@ static CFDictionaryRef hook_CNCopyCurrentNetworkInfo(CFStringRef iface) {
     NSMutableDictionary *d = [(__bridge NSDictionary *)orig mutableCopy];
     CFRelease(orig);
     d[@"BSSID"] = gWifiMAC;
-    return CFBridgingRetain(d);
+    return (CFDictionaryRef)CFBridgingRetain(d);
 }
 
 static OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef, CFTypeRef *);

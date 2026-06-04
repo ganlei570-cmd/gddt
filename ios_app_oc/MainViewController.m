@@ -134,15 +134,23 @@ static NSArray<NSString *> *btnTitles(void) {
 }
 
 - (void)doNewMachine {
+    NSString *last = [[NSUserDefaults standardUserDefaults] stringForKey:@"lastRegion"] ?: @"cn";
     UIAlertController *picker = [UIAlertController
-        alertControllerWithTitle:@"选择号码地区" message:@"运营商将随机匹配所选地区"
+        alertControllerWithTitle:@"选择号码地区"
+        message:[NSString stringWithFormat:@"上次：%@", [last isEqualToString:@"hk"] ? @"香港" : @"中国大陆"]
         preferredStyle:UIAlertControllerStyleActionSheet];
     picker.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
     __weak typeof(self) ws = self;
-    [picker addAction:[UIAlertAction actionWithTitle:@"中国大陆" style:UIAlertActionStyleDefault
-        handler:^(UIAlertAction *a) { [ws startNewMachineForRegion:@"cn"]; }]];
-    [picker addAction:[UIAlertAction actionWithTitle:@"香港" style:UIAlertActionStyleDefault
-        handler:^(UIAlertAction *a) { [ws startNewMachineForRegion:@"hk"]; }]];
+    [picker addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"%@中国大陆", [last isEqualToString:@"cn"] ? @"✓ " : @""]
+        style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+            [[NSUserDefaults standardUserDefaults] setObject:@"cn" forKey:@"lastRegion"];
+            [ws startNewMachineForRegion:@"cn"];
+        }]];
+    [picker addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"%@香港", [last isEqualToString:@"hk"] ? @"✓ " : @""]
+        style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+            [[NSUserDefaults standardUserDefaults] setObject:@"hk" forKey:@"lastRegion"];
+            [ws startNewMachineForRegion:@"hk"];
+        }]];
     [picker addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:picker animated:YES completion:nil];
 }

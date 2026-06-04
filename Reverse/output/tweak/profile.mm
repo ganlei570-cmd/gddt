@@ -17,13 +17,17 @@ NSString *gBootSessionUUID  = nil;
 NSMutableSet<NSString *> *gKeychainClearSet;
 NSMutableSet<NSString *> *gKeychainAllowedSet;
 
-static NSString *const kAllowedPath = @"/var/mobile/Documents/amap_profiles/kc_allowed.json";
+static NSString *amapProfileDir(void) {
+    NSArray *dirs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    return [[dirs firstObject] stringByAppendingPathComponent:@"amap_profiles"];
+}
 
 void saveKeychainAllowed(void) {
     @synchronized(gKeychainAllowedSet) {
         NSArray *arr = gKeychainAllowedSet.allObjects;
         NSData *d = [NSJSONSerialization dataWithJSONObject:arr options:0 error:nil];
-        [d writeToFile:kAllowedPath atomically:YES];
+        NSString *path = [amapProfileDir() stringByAppendingPathComponent:@"kc_allowed.json"];
+        [d writeToFile:path atomically:YES];
     }
 }
 
@@ -41,7 +45,7 @@ static NSMutableSet<NSString *> *defaultKCSet(void) {
 }
 
 static NSString *findActiveProfilePath(void) {
-    return @"/var/mobile/Documents/amap_profiles/active.json";
+    return [amapProfileDir() stringByAppendingPathComponent:@"active.json"];
 }
 
 static NSDictionary *diskProfile(void) {
@@ -64,7 +68,7 @@ void loadProfile(void) {
     gKeychainClearSet = defaultKCSet();
     // load persisted allowed set (keys Gaode has written this session)
     gKeychainAllowedSet = [NSMutableSet set];
-    NSData *ad = [NSData dataWithContentsOfFile:kAllowedPath];
+    NSData *ad = [NSData dataWithContentsOfFile:[amapProfileDir() stringByAppendingPathComponent:@"kc_allowed.json"]];
     if (ad) {
         NSArray *arr = [NSJSONSerialization JSONObjectWithData:ad options:0 error:nil];
         if ([arr isKindOfClass:[NSArray class]])

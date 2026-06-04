@@ -4,8 +4,6 @@
 #import <sys/mount.h>
 #import <signal.h>
 
-static NSString *const kActive     = @"/var/mobile/Documents/amap_profiles/active.json";
-static NSString *const kProfileDir = @"/var/mobile/Documents/amap_profiles";
 static NSString *const kBackupDir  = @"/var/mobile/Documents/amap_backups";
 static NSString *const kActivePtr  = @"/var/mobile/Documents/amap_backups/active_backup";
 
@@ -39,6 +37,17 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
 
 @implementation ProfileManager
 
+- (NSString *)amapProfileDir {
+    NSString *container = [self findAmapContainer];
+    NSString *base = container ?: @"/var/mobile/Containers/Data/Application";
+    return [container ? [container stringByAppendingPathComponent:@"Documents"] :
+        @"/var/mobile/Documents" stringByAppendingPathComponent:@"amap_profiles"];
+}
+
+- (NSString *)activePath {
+    return [[self amapProfileDir] stringByAppendingPathComponent:@"active.json"];
+}
+
 + (instancetype)shared {
     static ProfileManager *s; static dispatch_once_t t;
     dispatch_once(&t, ^{ s = [self new]; [s reload]; });
@@ -46,7 +55,7 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
 }
 
 - (void)reload {
-    NSData *d = [NSData dataWithContentsOfFile:kActive];
+    NSData *d = [NSData dataWithContentsOfFile:[self activePath]];
     NSDictionary *j = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
     self.activeIdfv = j[@"idfv"] ?: @"";
     self.activeBackupName = [[NSString alloc] initWithContentsOfFile:kActivePtr
@@ -101,12 +110,12 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
 }
 
 - (BOOL)saveActive:(NSDictionary *)profile error:(NSError **)error {
-    [[NSFileManager defaultManager] createDirectoryAtPath:kProfileDir
+    [[NSFileManager defaultManager] createDirectoryAtPath:[self amapProfileDir]
         withIntermediateDirectories:YES attributes:nil error:nil];
     NSData *data = [NSJSONSerialization dataWithJSONObject:profile
         options:NSJSONWritingPrettyPrinted error:error];
     if (!data) return NO;
-    BOOL ok = [data writeToFile:kActive options:NSDataWritingAtomic error:error];
+    BOOL ok = [data writeToFile:[self activePath] options:NSDataWritingAtomic error:error];
     if (ok) self.activeIdfv = profile[@"idfv"] ?: @"";
     return ok;
 }
@@ -258,7 +267,7 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
             [self clearAmapDataInContainer:container];
             // 删除 allowed keychain 记录，让 tweak 下次启动对所有 amap key 全量拦截
             [[NSFileManager defaultManager] removeItemAtPath:
-                @"/var/mobile/Documents/amap_profiles/kc_allowed.json" error:nil];
+                [[self amapProfileDir] stringByAppendingPathComponent:@"kc_allowed.json"] error:nil];
         } else {
             prog(@"未找到高德数据，直接生成新指纹...");
         }
@@ -276,7 +285,7 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
 }
 
 - (BOOL)clearKeychainWithError:(NSError **)error {
-    NSData *d = [NSData dataWithContentsOfFile:kActive];
+    NSData *d = [NSData dataWithContentsOfFile:[self activePath]];
     NSMutableDictionary *p = d
         ? [[NSJSONSerialization JSONObjectWithData:d options:NSJSONReadingMutableContainers error:nil] mutableCopy]
         : [[self generateProfile] mutableCopy];

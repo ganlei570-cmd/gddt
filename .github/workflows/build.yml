@@ -70,15 +70,18 @@ jobs:
             [ -n "$APPBIN" ] && echo "=== IPA architectures ===" && lipo -archs "$APPBIN"
           fi
 
-      - name: Copy to dist/
+      - name: Copy to dist/ with version number
         run: |
-          DEB=$(ls Reverse/output/tweak/packages/*.deb | tail -1)
-          DEBNAME=$(basename "$DEB")
-          cp "$DEB" "dist/$DEBNAME"
-          echo "  deb: dist/$DEBNAME"
+          MAXV=$(ls dist/ 2>/dev/null | grep -oE '_v[0-9]+' | grep -oE '[0-9]+' | sort -n | tail -1)
+          V=$((${MAXV:-1} + 1))
+          echo "NEXT_V=$V" >> $GITHUB_ENV
 
-          cp "ios_app_oc/packages/YiJianXinJi.ipa" "dist/YiJianXinJi.ipa"
-          echo "  ipa: dist/YiJianXinJi.ipa"
+          DEB=$(ls Reverse/output/tweak/packages/*.deb | tail -1)
+          cp "$DEB" "dist/tweak_v${V}.deb"
+          echo "  deb: dist/tweak_v${V}.deb"
+
+          cp "ios_app_oc/packages/YiJianXinJi.ipa" "dist/YiJianXinJi_v${V}.ipa"
+          echo "  ipa: dist/YiJianXinJi_v${V}.ipa"
 
       - name: Commit back to repo
         run: |
@@ -86,5 +89,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add dist/
           git diff --cached --quiet && echo "No changes" && exit 0
-          git commit -m "build: arm64+arm64e [skip ci]"
+          git commit -m "build: v${{ env.NEXT_V }} arm64+arm64e [skip ci]"
           git push

@@ -33,7 +33,10 @@ static NSMutableSet<NSString *> *defaultKCSet(void) {
         @"com.autonavi.amap/public_key", @"gd_amap/gd_amap",
         @"com.amap.adiu.key/com.amap.adiu.key",
         @"0.umid_v1/com.autonavi.amap",
-        @"PNS_UniqueId_com.autonavi.amap/PNS_UniqueId_com.autonavi.amap", nil];
+        @"PNS_UniqueId_com.autonavi.amap/PNS_UniqueId_com.autonavi.amap",
+        @"Soft/SGTMAGIC",
+        @"D7CA1CE6DE13787FD151D81C8E2C8C56/D7CA1CE6DE13787FD151D81C8E2C8C56",
+        nil];
 }
 
 static NSString *findActiveProfilePath(void) {

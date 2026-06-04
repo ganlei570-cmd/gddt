@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import "tlog.h"
 #import <sys/sysctl.h>
+#import <CoreFoundation/CoreFoundation.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
 #import <dlfcn.h>
@@ -131,8 +132,19 @@ static int hook_sysctlbyname(const char *n, void *o, size_t *sz, void *ne, size_
         const char *u = [gBootSessionUUID UTF8String];
         strlcpy((char *)o, u, *sz);
         *sz = strlen(u) + 1;
+    } else if (gHardwareUUID && (strcmp(n, "kern.hostuuid") == 0 || strcmp(n, "hw.uuid") == 0)) {
+        const char *u = [gHardwareUUID UTF8String];
+        strlcpy((char *)o, u, *sz);
+        *sz = strlen(u) + 1;
     }
     return r;
+}
+
+static CFTypeRef (*orig_IORegCreateCFProp)(mach_port_t, CFStringRef, CFAllocatorRef, uint32_t);
+static CFTypeRef hook_IORegCreateCFProp(mach_port_t entry, CFStringRef key, CFAllocatorRef alloc, uint32_t opts) {
+    if (gHardwareUUID && key && CFStringCompare(key, CFSTR("IOPlatformUUID"), 0) == kCFCompareEqualTo)
+        return CFStringCreateCopy(alloc ?: kCFAllocatorDefault, (__bridge CFStringRef)gHardwareUUID);
+    return orig_IORegCreateCFProp(entry, key, alloc, opts);
 }
 
 #if defined(__arm64e__)
@@ -202,5 +214,7 @@ static void hookEnvDetect(void) {
 void installBypassHooks(void) {
     hookAntiDebug();
     hookEnvDetect();
+    dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW);
+    MH("IORegistryEntryCreateCFProperty", hook_IORegCreateCFProp, &orig_IORegCreateCFProp);
     tlog(@"bypass_installed", nil);
 }

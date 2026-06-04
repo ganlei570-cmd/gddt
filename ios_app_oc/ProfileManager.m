@@ -100,6 +100,7 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
         @"machine":            machineStr,
         @"device_name":        deviceName,
         @"boot_session_uuid":  [NSUUID UUID].UUIDString.uppercaseString,
+        @"hardware_uuid":      [NSUUID UUID].UUIDString.uppercaseString,
         @"keychain": kc, @"userdefaults": ud,
     } mutableCopy];
     [profile addEntriesFromDictionary:carrier];

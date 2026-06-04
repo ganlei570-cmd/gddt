@@ -17,6 +17,8 @@ extern NSString *gBootSessionUUID;
 extern NSString *gHardwareUUID;
 extern NSMutableSet<NSString *> *gKeychainClearSet;
 extern NSMutableSet<NSString *> *gKeychainAllowedSet;
+extern NSString *gUTDID_gdAmap;
+extern NSString *gUTDID_adiuKey;
 
 #ifdef __cplusplus
 extern "C" {

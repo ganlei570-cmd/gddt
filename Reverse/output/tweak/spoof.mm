@@ -69,8 +69,34 @@ static CFDictionaryRef hook_CNCopyCurrentNetworkInfo(CFStringRef iface) {
     return (CFDictionaryRef)CFBridgingRetain(d);
 }
 
+static NSString *utdidValueForQuery(CFDictionaryRef q) {
+    CFTypeRef grp = CFDictionaryGetValue(q, kSecAttrAccessGroup);
+    if (!grp || CFGetTypeID(grp) != CFStringGetTypeID()) return nil;
+    if (![(__bridge NSString *)grp isEqualToString:@"Q6552JDTRL.com.autonavi.utdid"]) return nil;
+    CFTypeRef acc = CFDictionaryGetValue(q, kSecAttrAccount);
+    if (!acc || CFGetTypeID(acc) != CFStringGetTypeID()) return nil;
+    NSString *acct = (__bridge NSString *)acc;
+    if ([acct isEqualToString:@"gd_amap"])           return gUTDID_gdAmap;
+    if ([acct isEqualToString:@"com.amap.adiu.key"]) return gUTDID_adiuKey;
+    return nil;
+}
+
+static BOOL isUTDIDGroup(CFDictionaryRef q) {
+    CFTypeRef grp = CFDictionaryGetValue(q, kSecAttrAccessGroup);
+    return grp && CFGetTypeID(grp) == CFStringGetTypeID() &&
+           [(__bridge NSString *)grp isEqualToString:@"Q6552JDTRL.com.autonavi.utdid"];
+}
+
 static OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemCopyMatching(CFDictionaryRef q, CFTypeRef *result) {
+    if (result) {
+        NSString *val = utdidValueForQuery(q);
+        if (val) {
+            *result = CFBridgingRetain([val dataUsingEncoding:NSUTF8StringEncoding]);
+            tlog(@"utdid_spoofed", nil);
+            return errSecSuccess;
+        }
+    }
     NSString *key = kcQueryKey(q);
     if (shouldBlockKey(key)) {
         tlog(@"kc_blocked", @{@"key": key ?: @"nil"});
@@ -82,6 +108,10 @@ static OSStatus hook_SecItemCopyMatching(CFDictionaryRef q, CFTypeRef *result) {
 
 static OSStatus (*orig_SecItemAdd)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemAdd(CFDictionaryRef attrs, CFTypeRef *result) {
+    if (isUTDIDGroup(attrs)) {
+        tlog(@"utdid_add_blocked", nil);
+        return errSecDuplicateItem;
+    }
     NSString *key = kcQueryKey(attrs);
     OSStatus r = orig_SecItemAdd(attrs, result);
     if (r == errSecSuccess && key && isAmapKey(key)) {
@@ -95,6 +125,10 @@ static OSStatus hook_SecItemAdd(CFDictionaryRef attrs, CFTypeRef *result) {
 
 static OSStatus (*orig_SecItemUpdate)(CFDictionaryRef, CFDictionaryRef);
 static OSStatus hook_SecItemUpdate(CFDictionaryRef q, CFDictionaryRef attrs) {
+    if (isUTDIDGroup(q)) {
+        tlog(@"utdid_update_blocked", nil);
+        return errSecSuccess;
+    }
     NSString *key = kcQueryKey(q);
     OSStatus r = orig_SecItemUpdate(q, attrs);
     if (r == errSecSuccess && key && isAmapKey(key)) {

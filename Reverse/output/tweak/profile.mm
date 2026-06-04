@@ -18,6 +18,8 @@ NSString *gBootSessionUUID  = nil;
 NSString *gHardwareUUID     = nil;
 NSMutableSet<NSString *> *gKeychainClearSet;
 NSMutableSet<NSString *> *gKeychainAllowedSet;
+NSString *gUTDID_gdAmap  = nil;
+NSString *gUTDID_adiuKey = nil;
 
 static NSString *amapProfileDir(void) {
     NSArray *dirs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
@@ -107,5 +109,7 @@ void loadProfile(void) {
     if (p[@"boot_session_uuid"]) gBootSessionUUID  = p[@"boot_session_uuid"];
     if (p[@"hardware_uuid"])     gHardwareUUID     = p[@"hardware_uuid"];
     if (p[@"keychain"])          gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
+    if (p[@"utdid_gd_amap"])  gUTDID_gdAmap  = p[@"utdid_gd_amap"];
+    if (p[@"utdid_adiu_key"]) gUTDID_adiuKey = p[@"utdid_adiu_key"];
     tlog(@"profile_ok", @{@"idfv_prefix": [gIDFV substringToIndex:MIN(8u, gIDFV.length)]});
 }

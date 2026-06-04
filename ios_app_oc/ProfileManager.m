@@ -108,6 +108,9 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
     profile[@"disk_total"] = @(dTotal);
     profile[@"disk_free"]  = @(dFree);
     profile[@"wifi_mac"]   = wifiMac;
+    profile[@"utdid_gd_amap"]  = [NSUUID UUID].UUIDString.uppercaseString;
+    uint8_t adiuRaw[32]; arc4random_buf(adiuRaw, sizeof(adiuRaw));
+    profile[@"utdid_adiu_key"] = [[NSData dataWithBytes:adiuRaw length:32] base64EncodedStringWithOptions:0];
     return [profile copy];
 }
 

@@ -4,6 +4,7 @@
 extern NSString *gIDFV;
 extern NSString *gIDFA;
 extern NSString *gMachine;
+extern NSString *gDeviceName;
 extern NSString *gCarrierName;
 extern NSString *gCarrierMCC;
 extern NSString *gCarrierMNC;

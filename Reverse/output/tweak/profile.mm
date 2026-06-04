@@ -4,6 +4,7 @@
 NSString *gIDFV = @"A1B2C3D4-E5F6-7890-ABCD-EF1234567890";
 NSString *gIDFA = @"00000000-0000-0000-0000-000000000000";
 NSString *gMachine    = nil;
+NSString *gDeviceName = @"iPhone";
 NSString *gCarrierName = @"中国移动";
 NSString *gCarrierMCC  = @"460";
 NSString *gCarrierMNC  = @"00";
@@ -73,6 +74,7 @@ void loadProfile(void) {
     if (p[@"carrier_mcc"])  gCarrierMCC  = p[@"carrier_mcc"];
     if (p[@"carrier_mnc"])  gCarrierMNC  = p[@"carrier_mnc"];
     if (p[@"carrier_iso"])  gCarrierISO  = p[@"carrier_iso"];
+    if (p[@"device_name"])  gDeviceName  = p[@"device_name"];
     if (p[@"keychain"])     gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
     tlog(@"profile_ok", @{@"idfv_prefix": [gIDFV substringToIndex:MIN(8u, gIDFV.length)]});
 }

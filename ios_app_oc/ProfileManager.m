@@ -43,6 +43,11 @@ static NSArray<NSString *> *kcKeys(void) {
     size_t sz = sizeof(machine);
     sysctlbyname("hw.machine", machine, &sz, NULL, 0);
     NSString *machineStr = machine[0] ? @(machine) : @"iPhone13,2";
+    NSArray *deviceNames = @[
+        @"iPhone", @"iPhone 12", @"iPhone 13", @"iPhone 14", @"iPhone 15",
+        @"的iPhone", @"手机", @"我的iPhone",
+    ];
+    NSString *deviceName = deviceNames[arc4random_uniform((uint32_t)deviceNames.count)];
     NSArray *carriers = @[
         @{@"carrier_name":@"中国移动",@"carrier_mcc":@"460",@"carrier_mnc":@"00",@"carrier_iso":@"cn"},
         @{@"carrier_name":@"中国移动",@"carrier_mcc":@"460",@"carrier_mnc":@"02",@"carrier_iso":@"cn"},
@@ -53,9 +58,10 @@ static NSArray<NSString *> *kcKeys(void) {
     ];
     NSDictionary *carrier = carriers[arc4random_uniform((uint32_t)carriers.count)];
     NSMutableDictionary *profile = [@{
-        @"idfv":    [NSUUID UUID].UUIDString.uppercaseString,
-        @"idfa":    @"00000000-0000-0000-0000-000000000000",
-        @"machine": machineStr,
+        @"idfv":        [NSUUID UUID].UUIDString.uppercaseString,
+        @"idfa":        @"00000000-0000-0000-0000-000000000000",
+        @"machine":     machineStr,
+        @"device_name": deviceName,
         @"keychain": kc, @"userdefaults": ud,
     } mutableCopy];
     [profile addEntriesFromDictionary:carrier];

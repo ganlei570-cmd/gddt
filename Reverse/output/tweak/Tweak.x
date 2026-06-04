@@ -17,7 +17,7 @@
     return [[NSUUID alloc] initWithUUIDString:gIDFV];
 }
 - (NSString *)name {
-    return @"iPhone";
+    return gDeviceName ?: @"iPhone";
 }
 %end
 

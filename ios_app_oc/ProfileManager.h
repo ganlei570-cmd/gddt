@@ -5,7 +5,7 @@
 @property (nonatomic, copy) NSString *activeIdfv;
 @property (nonatomic, copy) NSString *activeBackupName;
 - (void)reload;
-- (void)newMachineAsync:(void(^)(BOOL done, NSString *status, NSError *err))callback;
+- (void)newMachineForRegion:(NSString *)region progress:(void(^)(BOOL done, NSString *status, NSError *err))callback;
 - (BOOL)clearKeychainWithError:(NSError **)error;
 - (NSArray<NSDictionary *> *)listBackups;
 - (BOOL)deleteBackupAtPath:(NSString *)path error:(NSError **)error;

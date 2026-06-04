@@ -134,13 +134,26 @@ static NSArray<NSString *> *btnTitles(void) {
 }
 
 - (void)doNewMachine {
+    UIAlertController *picker = [UIAlertController
+        alertControllerWithTitle:@"选择号码地区" message:@"运营商将随机匹配所选地区"
+        preferredStyle:UIAlertControllerStyleActionSheet];
+    picker.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
+    __weak typeof(self) ws = self;
+    [picker addAction:[UIAlertAction actionWithTitle:@"中国大陆" style:UIAlertActionStyleDefault
+        handler:^(UIAlertAction *a) { [ws startNewMachineForRegion:@"cn"]; }]];
+    [picker addAction:[UIAlertAction actionWithTitle:@"香港" style:UIAlertActionStyleDefault
+        handler:^(UIAlertAction *a) { [ws startNewMachineForRegion:@"hk"]; }]];
+    [picker addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (void)startNewMachineForRegion:(NSString *)region {
     UIAlertController *hud = [UIAlertController
         alertControllerWithTitle:@"一键新机" message:@"正在备份高德数据..."
         preferredStyle:UIAlertControllerStyleAlert];
     hud.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
     [self presentViewController:hud animated:YES completion:nil];
-
-    [[ProfileManager shared] newMachineAsync:^(BOOL done, NSString *status, NSError *err) {
+    [[ProfileManager shared] newMachineForRegion:region progress:^(BOOL done, NSString *status, NSError *err) {
         if (!done) { hud.message = status; return; }
         [hud dismissViewControllerAnimated:YES completion:^{
             if (!err) {

@@ -70,11 +70,8 @@ jobs:
             [ -n "$APPBIN" ] && echo "=== IPA architectures ===" && lipo -archs "$APPBIN"
           fi
 
-      - name: Copy to dist/ (clean old, keep latest only)
+      - name: Copy to dist/
         run: |
-          rm -f dist/tweak_v*.deb dist/YiJianXinJi_v*.ipa dist/YiJianXinJi.ipa
-          find dist/ -name "com.dev.amapnewdevice*.deb" -o -name "com.amap.newmachine*.deb" | xargs rm -f
-
           DEB=$(ls Reverse/output/tweak/packages/*.deb | tail -1)
           DEBNAME=$(basename "$DEB")
           cp "$DEB" "dist/$DEBNAME"

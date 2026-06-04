@@ -81,11 +81,6 @@ static NSString *utdidValueForQuery(CFDictionaryRef q) {
     return nil;
 }
 
-static BOOL isUTDIDGroup(CFDictionaryRef q) {
-    CFTypeRef grp = CFDictionaryGetValue(q, kSecAttrAccessGroup);
-    return grp && CFGetTypeID(grp) == CFStringGetTypeID() &&
-           [(__bridge NSString *)grp isEqualToString:@"Q6552JDTRL.com.autonavi.utdid"];
-}
 
 static OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemCopyMatching(CFDictionaryRef q, CFTypeRef *result) {

@@ -277,6 +277,10 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
         prog(@"正在写入新指纹...");
         NSError *err = nil;
         [self saveActive:profile error:&err];
+        // 标记需要重置 UTDID，Tweak 启动时删旧 Keychain 条目
+        [[NSFileManager defaultManager]
+            createFileAtPath:[[self amapProfileDir] stringByAppendingPathComponent:@"utdid_reset.flag"]
+                    contents:[NSData data] attributes:nil];
 
         if (!err && backupName) {
             self.activeBackupName = backupName;

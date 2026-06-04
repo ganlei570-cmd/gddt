@@ -1,5 +1,6 @@
 #import "profile.h"
 #import "tlog.h"
+#import <Security/Security.h>
 
 NSString *gIDFV = @"A1B2C3D4-E5F6-7890-ABCD-EF1234567890";
 NSString *gIDFA = @"00000000-0000-0000-0000-000000000000";
@@ -66,6 +67,17 @@ static NSMutableSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
 
 
 void loadProfile(void) {
+    NSString *flagPath = [amapProfileDir() stringByAppendingPathComponent:@"utdid_reset.flag"];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if ([fm fileExistsAtPath:flagPath]) {
+        NSDictionary *q = @{
+            (__bridge id)kSecClass:           (__bridge id)kSecClassGenericPassword,
+            (__bridge id)kSecAttrAccessGroup: @"Q6552JDTRL.com.autonavi.utdid",
+        };
+        SecItemDelete((__bridge CFDictionaryRef)q);
+        [fm removeItemAtPath:flagPath error:nil];
+        tlog(@"utdid_reset_done", nil);
+    }
     gKeychainClearSet = defaultKCSet();
     // load persisted allowed set (keys Gaode has written this session)
     gKeychainAllowedSet = [NSMutableSet set];

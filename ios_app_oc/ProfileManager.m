@@ -188,7 +188,7 @@ static NSArray<NSString *> *kcKeys(void) {
     [self clearDir:[container stringByAppendingPathComponent:@"Documents"] fm:fm];
     [self clearDir:[container stringByAppendingPathComponent:@"tmp"] fm:fm];
     NSString *lib = [container stringByAppendingPathComponent:@"Library"];
-    for (NSString *sub in @[@"Caches", @"Application Support", @"WebKit", @"SplashBoard", @"Cookies"]) {
+    for (NSString *sub in @[@"Caches", @"Application Support", @"WebKit", @"SplashBoard", @"Cookies", @"Preferences"]) {
         [self clearDir:[lib stringByAppendingPathComponent:sub] fm:fm];
     }
     NSString *prefsBase = @"/var/mobile/Library/Preferences";

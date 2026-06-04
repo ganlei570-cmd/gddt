@@ -39,9 +39,10 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
 
 - (NSString *)amapProfileDir {
     NSString *container = [self findAmapContainer];
-    NSString *base = container ?: @"/var/mobile/Containers/Data/Application";
-    return [container ? [container stringByAppendingPathComponent:@"Documents"] :
-        @"/var/mobile/Documents" stringByAppendingPathComponent:@"amap_profiles"];
+    NSString *docs = container
+        ? [container stringByAppendingPathComponent:@"Documents"]
+        : @"/var/mobile/Documents";
+    return [docs stringByAppendingPathComponent:@"amap_profiles"];
 }
 
 - (NSString *)activePath {

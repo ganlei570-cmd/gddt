@@ -85,10 +85,11 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
     ];
     NSDictionary *carrier = carriers[arc4random_uniform((uint32_t)carriers.count)];
     NSMutableDictionary *profile = [@{
-        @"idfv":        [NSUUID UUID].UUIDString.uppercaseString,
-        @"idfa":        @"00000000-0000-0000-0000-000000000000",
-        @"machine":     machineStr,
-        @"device_name": deviceName,
+        @"idfv":               [NSUUID UUID].UUIDString.uppercaseString,
+        @"idfa":               @"00000000-0000-0000-0000-000000000000",
+        @"machine":            machineStr,
+        @"device_name":        deviceName,
+        @"boot_session_uuid":  [NSUUID UUID].UUIDString.uppercaseString,
         @"keychain": kc, @"userdefaults": ud,
     } mutableCopy];
     [profile addEntriesFromDictionary:carrier];

@@ -12,7 +12,8 @@ NSString *gCarrierISO  = @"cn";
 NSString *gSysVer    = nil;
 NSNumber *gDiskTotal = nil;
 NSNumber *gDiskFree  = nil;
-NSString *gWifiMAC   = nil;
+NSString *gWifiMAC          = nil;
+NSString *gBootSessionUUID  = nil;
 NSMutableSet<NSString *> *gKeychainClearSet;
 NSMutableSet<NSString *> *gKeychainAllowedSet;
 
@@ -85,7 +86,8 @@ void loadProfile(void) {
     if (p[@"sys_ver"])    gSysVer    = p[@"sys_ver"];
     if (p[@"disk_total"]) gDiskTotal = @([p[@"disk_total"] unsignedLongLongValue]);
     if (p[@"disk_free"])  gDiskFree  = @([p[@"disk_free"]  unsignedLongLongValue]);
-    if (p[@"wifi_mac"])   gWifiMAC   = p[@"wifi_mac"];
-    if (p[@"keychain"])     gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
+    if (p[@"wifi_mac"])          gWifiMAC          = p[@"wifi_mac"];
+    if (p[@"boot_session_uuid"]) gBootSessionUUID  = p[@"boot_session_uuid"];
+    if (p[@"keychain"])          gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
     tlog(@"profile_ok", @{@"idfv_prefix": [gIDFV substringToIndex:MIN(8u, gIDFV.length)]});
 }

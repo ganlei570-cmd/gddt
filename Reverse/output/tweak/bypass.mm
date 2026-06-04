@@ -122,11 +122,15 @@ static int (*orig_sysctlbyname)(const char *, void *, size_t *, void *, size_t);
 static int hook_sysctlbyname(const char *n, void *o, size_t *sz, void *ne, size_t nsz) {
     if (n && strstr(n, "kern.proc.pid")) return -1;
     int r = orig_sysctlbyname(n, o, sz, ne, nsz);
-    if (r == 0 && o && sz && n && gMachine &&
-        (strcmp(n, "hw.machine") == 0 || strcmp(n, "hw.model") == 0)) {
+    if (r != 0 || !o || !sz || !n) return r;
+    if (gMachine && (strcmp(n, "hw.machine") == 0 || strcmp(n, "hw.model") == 0)) {
         const char *m = [gMachine UTF8String];
         strlcpy((char *)o, m, *sz);
         *sz = strlen(m) + 1;
+    } else if (gBootSessionUUID && strcmp(n, "kern.bootsessionuuid") == 0) {
+        const char *u = [gBootSessionUUID UTF8String];
+        strlcpy((char *)o, u, *sz);
+        *sz = strlen(u) + 1;
     }
     return r;
 }

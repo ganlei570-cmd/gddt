@@ -13,6 +13,7 @@ extern NSString *gSysVer;
 extern NSNumber *gDiskTotal;
 extern NSNumber *gDiskFree;
 extern NSString *gWifiMAC;
+extern NSString *gBootSessionUUID;
 extern NSMutableSet<NSString *> *gKeychainClearSet;
 extern NSMutableSet<NSString *> *gKeychainAllowedSet;
 

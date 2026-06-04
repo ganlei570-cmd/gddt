@@ -1,6 +1,7 @@
 #import "ProfileManager.h"
 #import <UIKit/UIKit.h>
 #import <sys/sysctl.h>
+#import <sys/mount.h>
 #import <signal.h>
 
 static NSString *const kActive     = @"/var/mobile/Documents/amap_profiles/active.json";
@@ -17,6 +18,23 @@ static NSArray<NSString *> *kcKeys(void) {
         @"0.umid_v1/com.autonavi.amap",
         @"PNS_UniqueId_com.autonavi.amap/PNS_UniqueId_com.autonavi.amap",
     ];
+}
+
+static NSArray<NSString *> *sysVerPool(NSString *real) {
+    NSDictionary *m = @{
+        @"15.4":@[@"15.4",@"15.4.1"],   @"15.4.1":@[@"15.4",@"15.4.1"],
+        @"15.5":@[@"15.5"],
+        @"15.6":@[@"15.6",@"15.6.1"],   @"15.6.1":@[@"15.6",@"15.6.1"],
+        @"15.7":@[@"15.7",@"15.7.1"],   @"15.7.1":@[@"15.7",@"15.7.1",@"15.7.2"],
+        @"16.0":@[@"16.0",@"16.0.1"],   @"16.0.1":@[@"16.0",@"16.0.1",@"16.0.2"],
+        @"16.1":@[@"16.1",@"16.1.1"],   @"16.1.1":@[@"16.1",@"16.1.1"],
+        @"16.2":@[@"16.2"],
+        @"16.3":@[@"16.3",@"16.3.1"],   @"16.3.1":@[@"16.3",@"16.3.1"],
+        @"16.4":@[@"16.4",@"16.4.1"],   @"16.4.1":@[@"16.4",@"16.4.1"],
+        @"16.5":@[@"16.5",@"16.5.1"],   @"16.5.1":@[@"16.5",@"16.5.1"],
+        @"16.6":@[@"16.6",@"16.6.1"],   @"16.6.1":@[@"16.6",@"16.6.1"],
+    };
+    return m[real] ?: @[real];
 }
 
 @implementation ProfileManager
@@ -43,18 +61,17 @@ static NSArray<NSString *> *kcKeys(void) {
     size_t sz = sizeof(machine);
     sysctlbyname("hw.machine", machine, &sz, NULL, 0);
     NSString *machineStr = machine[0] ? @(machine) : @"iPhone13,2";
-    NSArray *deviceNames = @[
-        @"iPhone", @"iPhone 12", @"iPhone 13", @"iPhone 14", @"iPhone 15",
-        @"的iPhone", @"手机", @"我的iPhone",
-    ];
+    NSArray *deviceNames = @[@"iPhone", @"的iPhone", @"我的iPhone", @"手机", @"iPhone手机"];
     NSString *deviceName = deviceNames[arc4random_uniform((uint32_t)deviceNames.count)];
     NSString *osVer = [UIDevice currentDevice].systemVersion;
-    NSArray *verPool = [osVer hasPrefix:@"16"] ?
-        @[@"16.0",@"16.1",@"16.1.1",@"16.2",@"16.3",@"16.3.1",@"16.4",@"16.4.1",@"16.5",@"16.5.1",@"16.6",@"16.6.1"] :
-        @[@"15.4",@"15.4.1",@"15.5",@"15.6",@"15.6.1",@"15.7",@"15.7.1"];
+    NSArray *verPool = sysVerPool(osVer);
     NSString *sysVer = verPool[arc4random_uniform((uint32_t)verPool.count)];
-    static const long long kDisks[] = {62522933248LL,126282547200LL,252706160640LL,511430164480LL};
-    long long dTotal = kDisks[arc4random_uniform(4)] + ((long long)arc4random_uniform(3072)-1536)*1024*1024;
+    struct statfs st;
+    long long realTotal = 126282547200LL;
+    if (statfs("/var/mobile", &st) == 0 && st.f_bsize > 0)
+        realTotal = (long long)st.f_blocks * (long long)st.f_bsize;
+    double scale = 1.0 + ((double)((int)arc4random_uniform(11) - 5)) / 100.0;
+    long long dTotal = (long long)(realTotal * scale);
     long long dFree  = dTotal / 100 * (20 + arc4random_uniform(41));
     uint8_t mb[6]; arc4random_buf(mb, sizeof(mb)); mb[0] = (mb[0] & 0xFE) | 0x02;
     NSString *wifiMac = [NSString stringWithFormat:@"%02x:%02x:%02x:%02x:%02x:%02x",mb[0],mb[1],mb[2],mb[3],mb[4],mb[5]];

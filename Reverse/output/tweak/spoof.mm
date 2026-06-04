@@ -1,6 +1,8 @@
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
 #import <CoreFoundation/CoreFoundation.h>
+#import <sys/mount.h>
+#import <sys/statvfs.h>
 #import <dlfcn.h>
 #import <substrate.h>
 #import "profile.h"
@@ -30,6 +32,29 @@ static BOOL shouldBlockKey(NSString *key) {
         return !allowed;
     }
     return NO;
+}
+
+static int (*orig_statfs)(const char *, struct statfs *) = NULL;
+static int hook_statfs(const char *path, struct statfs *buf) {
+    int r = orig_statfs(path, buf);
+    if (r != 0 || !gDiskTotal || !gDiskFree || buf->f_bsize == 0) return r;
+    uint64_t bs = (uint64_t)buf->f_bsize;
+    buf->f_blocks = (typeof(buf->f_blocks))([gDiskTotal unsignedLongLongValue] / bs);
+    buf->f_bfree  = (typeof(buf->f_bfree)) ([gDiskFree  unsignedLongLongValue] / bs);
+    buf->f_bavail = buf->f_bfree;
+    return r;
+}
+
+static int (*orig_statvfs)(const char *, struct statvfs *) = NULL;
+static int hook_statvfs(const char *path, struct statvfs *buf) {
+    int r = orig_statvfs(path, buf);
+    if (r != 0 || !gDiskTotal || !gDiskFree) return r;
+    unsigned long fs = buf->f_frsize > 0 ? buf->f_frsize : buf->f_bsize;
+    if (fs == 0) return r;
+    buf->f_blocks = (typeof(buf->f_blocks))([gDiskTotal unsignedLongLongValue] / fs);
+    buf->f_bfree  = (typeof(buf->f_bfree)) ([gDiskFree  unsignedLongLongValue] / fs);
+    buf->f_bavail = buf->f_bfree;
+    return r;
 }
 
 static CFDictionaryRef (*orig_CNCopyCurrentNetworkInfo)(CFStringRef) = NULL;
@@ -80,6 +105,8 @@ static OSStatus hook_SecItemUpdate(CFDictionaryRef q, CFDictionaryRef attrs) {
 }
 
 void installSpoofHooks(void) {
+    MSHookFunction((void *)statfs,  (void *)hook_statfs,  (void **)&orig_statfs);
+    MSHookFunction((void *)statvfs, (void *)hook_statvfs, (void **)&orig_statvfs);
     MSHookFunction((void *)SecItemCopyMatching, (void *)hook_SecItemCopyMatching, (void **)&orig_SecItemCopyMatching);
     MSHookFunction((void *)SecItemAdd,    (void *)hook_SecItemAdd,    (void **)&orig_SecItemAdd);
     MSHookFunction((void *)SecItemUpdate, (void *)hook_SecItemUpdate, (void **)&orig_SecItemUpdate);

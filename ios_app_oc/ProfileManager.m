@@ -1,6 +1,7 @@
 #import "ProfileManager.h"
 #import <UIKit/UIKit.h>
 #import <sys/sysctl.h>
+#import <signal.h>
 
 static NSString *const kActive     = @"/var/mobile/Documents/amap_profiles/active.json";
 static NSString *const kProfileDir = @"/var/mobile/Documents/amap_profiles";
@@ -178,6 +179,22 @@ static NSArray<NSString *> *kcKeys(void) {
     return result;
 }
 
+- (void)killAmapProcess {
+    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
+    size_t size = 0;
+    sysctl(mib, 4, NULL, &size, NULL, 0);
+    struct kinfo_proc *procs = malloc(size);
+    if (!procs) return;
+    sysctl(mib, 4, procs, &size, NULL, 0);
+    int count = (int)(size / sizeof(struct kinfo_proc));
+    for (int i = 0; i < count; i++) {
+        NSString *name = [NSString stringWithUTF8String:procs[i].kp_proc.p_comm];
+        if ([name hasPrefix:@"AMapiPhone"])
+            kill(procs[i].kp_proc.p_pid, SIGKILL);
+    }
+    free(procs);
+}
+
 - (void)clearDir:(NSString *)path fm:(NSFileManager *)fm {
     for (NSString *item in [fm contentsOfDirectoryAtPath:path error:nil])
         [fm removeItemAtPath:[path stringByAppendingPathComponent:item] error:nil];
@@ -211,6 +228,9 @@ static NSArray<NSString *> *kcKeys(void) {
         NSString *backupName  = nil;
 
         if (container) {
+            prog(@"正在关闭高德...");
+            [self killAmapProcess];
+            sleep(1);
             prog(@"正在备份高德数据...");
             backupName = [self createBackupWithProfile:profile container:container];
             prog(@"正在清理高德数据...");

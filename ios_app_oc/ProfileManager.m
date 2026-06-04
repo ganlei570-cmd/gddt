@@ -8,12 +8,6 @@ static NSString *const kProfileDir = @"/var/mobile/Documents/amap_profiles";
 static NSString *const kBackupDir  = @"/var/mobile/Documents/amap_backups";
 static NSString *const kActivePtr  = @"/var/mobile/Documents/amap_backups/active_backup";
 
-static NSArray<NSString *> *kUserDataFiles(void) {
-    return @[@"favoriteIndex.plist", @"cachedSearchData.plist",
-             @"cachedSearchHomeData.plist", @"search_home.plist",
-             @"PoiDetailUserBehavior.plist"];
-}
-
 static NSArray<NSString *> *kcKeys(void) {
     return @[
         @"com.autonavi.amap/udid",   @"com.autonavi.amap/vimsi",
@@ -136,17 +130,6 @@ static NSArray<NSString *> *kcKeys(void) {
     NSData *pd = [NSJSONSerialization dataWithJSONObject:profile options:NSJSONWritingPrettyPrinted error:nil];
     [pd writeToFile:[dir stringByAppendingPathComponent:@"profile.json"] atomically:YES];
 
-    if (container) {
-        NSString *prefsSrc = [container stringByAppendingPathComponent:@"Library/Preferences"];
-        NSString *prefsDst = [dir stringByAppendingPathComponent:@"user_data"];
-        [fm createDirectoryAtPath:prefsDst withIntermediateDirectories:YES attributes:nil error:nil];
-        for (NSString *f in kUserDataFiles()) {
-            NSString *src = [prefsSrc stringByAppendingPathComponent:f];
-            if ([fm fileExistsAtPath:src])
-                [fm copyItemAtPath:src toPath:[prefsDst stringByAppendingPathComponent:f] error:nil];
-        }
-    }
-
     unsigned long long sizeMB = [self dirSize:dir] / (1024 * 1024);
     UIDevice *dev = [UIDevice currentDevice];
     NSDateFormatter *fmt = [NSDateFormatter new];
@@ -238,6 +221,9 @@ static NSArray<NSString *> *kcKeys(void) {
             // 删除 allowed keychain 记录，让 tweak 下次启动对所有 amap key 全量拦截
             [[NSFileManager defaultManager] removeItemAtPath:
                 @"/var/mobile/Documents/amap_profiles/kc_allowed.json" error:nil];
+            // 写 block_sync 标记，让 tweak 拦截云端同步数据落盘
+            [@"1" writeToFile:@"/var/mobile/Documents/amap_profiles/block_sync"
+                atomically:YES encoding:NSUTF8StringEncoding error:nil];
         } else {
             prog(@"未找到高德数据，直接生成新指纹...");
         }
@@ -305,21 +291,9 @@ static NSArray<NSString *> *kcKeys(void) {
     NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:error];
     if (!j) return NO;
     if (![self saveActive:j error:error]) return NO;
-    // restore user data (favorites/search history) to current container
-    NSString *container = [self findAmapContainer];
-    if (container) {
-        NSFileManager *fm = [NSFileManager defaultManager];
-        NSString *srcDir = [path stringByAppendingPathComponent:@"user_data"];
-        NSString *dstDir = [container stringByAppendingPathComponent:@"Library/Preferences"];
-        [fm createDirectoryAtPath:dstDir withIntermediateDirectories:YES attributes:nil error:nil];
-        for (NSString *f in kUserDataFiles()) {
-            NSString *src = [srcDir stringByAppendingPathComponent:f];
-            if (![fm fileExistsAtPath:src]) continue;
-            NSString *dst = [dstDir stringByAppendingPathComponent:f];
-            [fm removeItemAtPath:dst error:nil];
-            [fm copyItemAtPath:src toPath:dst error:nil];
-        }
-    }
+    // 还原旧指纹后解除云端同步拦截，登录时云端会根据旧指纹自动推回数据
+    [[NSFileManager defaultManager] removeItemAtPath:
+        @"/var/mobile/Documents/amap_profiles/block_sync" error:nil];
     return YES;
 }
 

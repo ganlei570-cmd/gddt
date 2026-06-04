@@ -10,6 +10,7 @@ extern NSString *gCarrierMNC;
 extern NSString *gCarrierISO;
 extern NSMutableSet<NSString *> *gKeychainClearSet;
 extern NSMutableSet<NSString *> *gKeychainAllowedSet;
+extern BOOL gBlockSync;
 
 #ifdef __cplusplus
 extern "C" {

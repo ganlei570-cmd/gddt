@@ -5,8 +5,6 @@
 #import <netinet/in.h>
 #import <dlfcn.h>
 #import <mach/mach.h>
-#import <CoreFoundation/CFPreferences.h>
-#import <libkern/OSCacheControl.h>
 #include <signal.h>
 #include <unistd.h>
 #import <substrate.h>
@@ -197,47 +195,8 @@ static void hookEnvDetect(void) {
     MH("dlopen",  hook_dlopen,  &orig_dlopen);
 }
 
-// -- CFPreferencesCopyAppValue kill-switch protection --
-
-#define CFPREF_PATCH_LEN 16
-
-static void *s_cfpref_addr = NULL;
-static uint8_t s_cfpref_jmp[CFPREF_PATCH_LEN];
-
-static CFPropertyListRef (*orig_cfpref)(CFStringRef, CFStringRef);
-static CFPropertyListRef hook_cfpref(CFStringRef key, CFStringRef appID) {
-    if (key && gPrefClearSet && [gPrefClearSet containsObject:(__bridge NSString *)key])
-        return NULL;
-    if (!appID) appID = kCFPreferencesCurrentApplication;
-    return CFPreferencesCopyValue(key, appID, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
-}
-
-static void repatch_cfpref(void) {
-    if (!s_cfpref_addr || memcmp(s_cfpref_addr, s_cfpref_jmp, 4) == 0) return;
-    vm_address_t page = (vm_address_t)s_cfpref_addr & ~0xFFFULL;
-    if (vm_protect(mach_task_self(), page, 0x1000, FALSE, VM_PROT_READ|VM_PROT_WRITE|VM_PROT_EXECUTE) != KERN_SUCCESS) return;
-    memcpy(s_cfpref_addr, s_cfpref_jmp, CFPREF_PATCH_LEN);
-    sys_icache_invalidate(s_cfpref_addr, CFPREF_PATCH_LEN);
-    vm_protect(mach_task_self(), page, 0x1000, FALSE, VM_PROT_READ|VM_PROT_EXECUTE);
-}
-
-static void hookCFPrefProtect(void) {
-    void *cfp = dlsym(RTLD_DEFAULT, "CFPreferencesCopyAppValue");
-    if (!cfp) return;
-    s_cfpref_addr = cfp;
-    MSHookFunction(cfp, (void *)hook_cfpref, (void **)&orig_cfpref);
-    memcpy(s_cfpref_jmp, cfp, CFPREF_PATCH_LEN);
-    dispatch_source_t t = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
-        dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0));
-    dispatch_source_set_timer(t, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
-        20 * NSEC_PER_MSEC, 2 * NSEC_PER_MSEC);
-    dispatch_source_set_event_handler(t, ^{ repatch_cfpref(); });
-    dispatch_resume(t);
-}
-
 void installBypassHooks(void) {
     hookAntiDebug();
     hookEnvDetect();
-    hookCFPrefProtect();
     tlog(@"bypass_installed", nil);
 }

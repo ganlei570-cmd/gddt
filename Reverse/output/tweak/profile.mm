@@ -9,7 +9,6 @@ NSString *gCarrierMCC  = @"460";
 NSString *gCarrierMNC  = @"00";
 NSString *gCarrierISO  = @"cn";
 NSMutableSet<NSString *> *gKeychainClearSet;
-NSSet<NSString *> *gPrefClearSet;
 
 static NSMutableSet<NSString *> *defaultKCSet(void) {
     return [NSMutableSet setWithObjects:
@@ -19,10 +18,6 @@ static NSMutableSet<NSString *> *defaultKCSet(void) {
         @"com.amap.adiu.key/com.amap.adiu.key",
         @"0.umid_v1/com.autonavi.amap",
         @"PNS_UniqueId_com.autonavi.amap/PNS_UniqueId_com.autonavi.amap", nil];
-}
-
-static NSSet<NSString *> *defaultPrefSet(void) {
-    return [NSSet set];
 }
 
 static NSString *findActiveProfilePath(void) {
@@ -44,16 +39,9 @@ static NSMutableSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
     return s;
 }
 
-static NSSet<NSString *> *prefSetFromDict(NSDictionary *ud) {
-    NSMutableSet *s = [NSMutableSet set];
-    for (NSString *k in ud)
-        if (!ud[k] || ud[k] == [NSNull null]) [s addObject:k];
-    return [s copy];
-}
 
 void loadProfile(void) {
     gKeychainClearSet = defaultKCSet();
-    gPrefClearSet = defaultPrefSet();
     NSDictionary *p = diskProfile();
     if (!p) {
         tlog(@"profile_fail", @{@"reason": @"file_not_found"});
@@ -67,6 +55,5 @@ void loadProfile(void) {
     if (p[@"carrier_mnc"])  gCarrierMNC  = p[@"carrier_mnc"];
     if (p[@"carrier_iso"])  gCarrierISO  = p[@"carrier_iso"];
     if (p[@"keychain"])     gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
-    if (p[@"userdefaults"]) gPrefClearSet = prefSetFromDict(p[@"userdefaults"]);
     tlog(@"profile_ok", @{@"idfv_prefix": [gIDFV substringToIndex:MIN(8u, gIDFV.length)]});
 }

@@ -9,7 +9,6 @@ extern NSString *gCarrierMCC;
 extern NSString *gCarrierMNC;
 extern NSString *gCarrierISO;
 extern NSMutableSet<NSString *> *gKeychainClearSet;
-extern NSSet<NSString *> *gPrefClearSet;
 
 #ifdef __cplusplus
 extern "C" {

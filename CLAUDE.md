@@ -234,7 +234,7 @@ CI 编译（备用）：git push → GitHub Actions 自动触发
 #### deploy.py 本地编译流程
 `deploy.py` 通过 SSH 127.0.0.1:3333（iproxy 转发设备端口）完成：
 上传修改文件 → on-device make package FINALPACKAGE=1 → 拉回 dist/tweak_vN.deb
-**不自动安装到设备**，用户自行用 Filza / Sileo / `dpkg -i` 安装
+编译完成后 .deb 自动拉回到 **PC 项目 dist/ 文件夹**，不推送到手机，用户自行安装
 
 **前置条件（缺一不可）**：
 1. 设备通过 USB 连接，`iproxy 3333 22` 正在运行（或已 adb forward tcp:3333 tcp:22）
@@ -245,11 +245,8 @@ CI 编译（备用）：git push → GitHub Actions 自动触发
 # 确认 iproxy 转发
 iproxy 3333 22 &
 
-# 一键编译安装
+# 一键编译，产物自动落到 PC 的 dist/ 文件夹
 python deploy.py
-
-# 仅检查日志（不重编）
-python deploy.py --check
 ```
 
 **CHANGED 文件列表**：`deploy.py` 顶部的 `CHANGED` 数组控制上传哪些文件。改了哪些 tweak 源文件就更新对应条目，**不要漏传也不要多传**。当前包含：

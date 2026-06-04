@@ -108,10 +108,6 @@ static OSStatus hook_SecItemCopyMatching(CFDictionaryRef q, CFTypeRef *result) {
 
 static OSStatus (*orig_SecItemAdd)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemAdd(CFDictionaryRef attrs, CFTypeRef *result) {
-    if (isUTDIDGroup(attrs)) {
-        tlog(@"utdid_add_blocked", nil);
-        return errSecDuplicateItem;
-    }
     NSString *key = kcQueryKey(attrs);
     OSStatus r = orig_SecItemAdd(attrs, result);
     if (r == errSecSuccess && key && isAmapKey(key)) {
@@ -125,10 +121,6 @@ static OSStatus hook_SecItemAdd(CFDictionaryRef attrs, CFTypeRef *result) {
 
 static OSStatus (*orig_SecItemUpdate)(CFDictionaryRef, CFDictionaryRef);
 static OSStatus hook_SecItemUpdate(CFDictionaryRef q, CFDictionaryRef attrs) {
-    if (isUTDIDGroup(q)) {
-        tlog(@"utdid_update_blocked", nil);
-        return errSecSuccess;
-    }
     NSString *key = kcQueryKey(q);
     OSStatus r = orig_SecItemUpdate(q, attrs);
     if (r == errSecSuccess && key && isAmapKey(key)) {

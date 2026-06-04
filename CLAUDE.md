@@ -222,6 +222,46 @@ IPA 和 deb 必须同时兼容 arm64（A11 及以下）和 arm64e（A12+）机�
 | `spoof.js` | 只写设备指纹伪装 Hook |
 | `debug/` | 一次性探测，用完删 |
 
+### 编译构建规范（强制）
+
+**优先用本地编译（deploy.py）**，GitHub Actions CI 作为备用：
+
+```
+本地编译（推荐）：python deploy.py
+CI 编译（备用）：git push → GitHub Actions 自动触发
+```
+
+#### deploy.py 本地编译流程
+`deploy.py` 通过 SSH 127.0.0.1:3333（iproxy 转发设备端口）完成全链路：
+上传修改文件 → on-device make → 安装 dylib → ldid 签名 → 杀 AMap
+
+**前置条件（缺一不可）**：
+1. 设备通过 USB 连接，`iproxy 3333 22` 正在运行（或已 adb forward tcp:3333 tcp:22）
+2. 设备端 Theos 已安装在 `/var/jb/opt/theos`
+3. `pip install paramiko`
+
+```bash
+# 确认 iproxy 转发
+iproxy 3333 22 &
+
+# 一键编译安装
+python deploy.py
+
+# 仅检查日志（不重编）
+python deploy.py --check
+```
+
+**CHANGED 文件列表**：`deploy.py` 顶部的 `CHANGED` 数组控制上传哪些文件。改了哪些 tweak 源文件就更新对应条目，**不要漏传也不要多传**。当前包含：
+`bypass.mm / profile.h / profile.mm / spoof.mm / tlog.mm / Tweak.x`
+
+IPA 构建（ios_app_oc）**不走 deploy.py**，走 CI：改 ios_app_oc/ 后 push，CI 自动出 IPA。
+
+#### 编译产物命名
+- 本地编译不直接产出 dist/ 文件，安装到设备验证通过后再 push CI 出正式版
+- CI 产出：`dist/tweak_vN.deb` + `dist/YiJianXinJi_vN.ipa`（N 自动递增）
+
+---
+
 ### 连接规范
 ```bash
 # 连接前确认设备在线

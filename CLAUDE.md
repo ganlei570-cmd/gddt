@@ -232,8 +232,9 @@ CI 编译（备用）：git push → GitHub Actions 自动触发
 ```
 
 #### deploy.py 本地编译流程
-`deploy.py` 通过 SSH 127.0.0.1:3333（iproxy 转发设备端口）完成全链路：
-上传修改文件 → on-device make → 安装 dylib → ldid 签名 → 杀 AMap
+`deploy.py` 通过 SSH 127.0.0.1:3333（iproxy 转发设备端口）完成：
+上传修改文件 → on-device make package FINALPACKAGE=1 → 拉回 dist/tweak_vN.deb
+**不自动安装到设备**，用户自行用 Filza / Sileo / `dpkg -i` 安装
 
 **前置条件（缺一不可）**：
 1. 设备通过 USB 连接，`iproxy 3333 22` 正在运行（或已 adb forward tcp:3333 tcp:22）
@@ -257,8 +258,8 @@ python deploy.py --check
 IPA 构建（ios_app_oc）**不走 deploy.py**，走 CI：改 ios_app_oc/ 后 push，CI 自动出 IPA。
 
 #### 编译产物命名
-- 本地编译不直接产出 dist/ 文件，安装到设备验证通过后再 push CI 出正式版
-- CI 产出：`dist/tweak_vN.deb` + `dist/YiJianXinJi_vN.ipa`（N 自动递增）
+- 本地编译产出：`dist/tweak_vN.deb`（N 自动递增，deploy.py 自动计算）
+- CI 产出：`dist/tweak_vN.deb` + `dist/YiJianXinJi_vN.ipa`（改 ios_app_oc/ 后 push 触发）
 
 ---
 

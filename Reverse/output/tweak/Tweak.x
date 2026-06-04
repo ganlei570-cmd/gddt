@@ -40,45 +40,6 @@
 %end
 %end
 
-// ── 云端同步写入拦截（一键新机后阻止云端数据落盘）────────────────
-static NSSet *sSyncBlockedFiles(void) {
-    static NSSet *s;
-    static dispatch_once_t t;
-    dispatch_once(&t, ^{
-        s = [NSSet setWithObjects:
-            @"favoriteIndex.plist", @"cachedSearchData.plist",
-            @"cachedSearchHomeData.plist", @"search_home.plist",
-            @"PoiDetailUserBehavior.plist", nil];
-    });
-    return s;
-}
-
-static BOOL shouldBlockWrite(NSString *path) {
-    if (!gBlockSync || !path) return NO;
-    NSString *prefsDir = [NSHomeDirectory()
-        stringByAppendingPathComponent:@"Library/Preferences"];
-    return [path hasPrefix:prefsDir]
-        && [sSyncBlockedFiles() containsObject:path.lastPathComponent];
-}
-
-%hook NSDictionary
-- (BOOL)writeToFile:(NSString *)path atomically:(BOOL)a {
-    return shouldBlockWrite(path) ? YES : %orig;
-}
-%end
-
-%hook NSArray
-- (BOOL)writeToFile:(NSString *)path atomically:(BOOL)a {
-    return shouldBlockWrite(path) ? YES : %orig;
-}
-%end
-
-%hook NSData
-- (BOOL)writeToFile:(NSString *)path atomically:(BOOL)a {
-    return shouldBlockWrite(path) ? YES : %orig;
-}
-%end
-
 // ── 初始化 ────────────────────────────────────────────────────
 // 顺序：loadProfile（读 JSON） → bypass（安装 C hook） → spoof（Keychain/Prefs）
 // → dlopen AdSupport → %init(GAdSupport)
@@ -89,14 +50,6 @@ static BOOL shouldBlockWrite(NSString *path) {
             [@"1" writeToFile:@"/tmp/amaptweak_loaded" atomically:YES encoding:NSUTF8StringEncoding error:nil];
             tlog(@"tweak_loaded", nil);
             loadProfile();
-            if (gBlockSync) {
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 180 * NSEC_PER_SEC),
-                    dispatch_get_main_queue(), ^{
-                    gBlockSync = NO;
-                    [[NSFileManager defaultManager] removeItemAtPath:
-                        @"/var/mobile/Documents/amap_profiles/block_sync" error:nil];
-                });
-            }
             installBypassHooks();
             installSpoofHooks();
             initCleanHooks();

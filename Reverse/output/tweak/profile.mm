@@ -10,7 +10,6 @@ NSString *gCarrierMNC  = @"00";
 NSString *gCarrierISO  = @"cn";
 NSMutableSet<NSString *> *gKeychainClearSet;
 NSMutableSet<NSString *> *gKeychainAllowedSet;
-BOOL gBlockSync = NO;
 
 static NSString *const kAllowedPath = @"/var/mobile/Documents/amap_profiles/kc_allowed.json";
 
@@ -54,8 +53,6 @@ static NSMutableSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
 
 void loadProfile(void) {
     gKeychainClearSet = defaultKCSet();
-    gBlockSync = [[NSFileManager defaultManager]
-        fileExistsAtPath:@"/var/mobile/Documents/amap_profiles/block_sync"];
     // load persisted allowed set (keys Gaode has written this session)
     gKeychainAllowedSet = [NSMutableSet set];
     NSData *ad = [NSData dataWithContentsOfFile:kAllowedPath];

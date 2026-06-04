@@ -221,9 +221,6 @@ static NSArray<NSString *> *kcKeys(void) {
             // 删除 allowed keychain 记录，让 tweak 下次启动对所有 amap key 全量拦截
             [[NSFileManager defaultManager] removeItemAtPath:
                 @"/var/mobile/Documents/amap_profiles/kc_allowed.json" error:nil];
-            // 写 block_sync 标记，让 tweak 拦截云端同步数据落盘
-            [@"1" writeToFile:@"/var/mobile/Documents/amap_profiles/block_sync"
-                atomically:YES encoding:NSUTF8StringEncoding error:nil];
         } else {
             prog(@"未找到高德数据，直接生成新指纹...");
         }
@@ -290,11 +287,7 @@ static NSArray<NSString *> *kcKeys(void) {
     if (!d) return NO;
     NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:error];
     if (!j) return NO;
-    if (![self saveActive:j error:error]) return NO;
-    // 还原旧指纹后解除云端同步拦截，登录时云端会根据旧指纹自动推回数据
-    [[NSFileManager defaultManager] removeItemAtPath:
-        @"/var/mobile/Documents/amap_profiles/block_sync" error:nil];
-    return YES;
+    return [self saveActive:j error:error];
 }
 
 @end

@@ -13,11 +13,19 @@
 
 // ── UIKit hooks（UIKit 必定已加载，无需 %group）────────────────
 %hook UIDevice
-- (NSUUID *)identifierForVendor {
-    return [[NSUUID alloc] initWithUUIDString:gIDFV];
-}
-- (NSString *)name {
-    return gDeviceName ?: @"iPhone";
+- (NSUUID *)identifierForVendor { return [[NSUUID alloc] initWithUUIDString:gIDFV]; }
+- (NSString *)name              { return gDeviceName ?: @"iPhone"; }
+- (NSString *)systemVersion     { return gSysVer ?: %orig; }
+%end
+
+%hook NSFileManager
+- (NSDictionary *)attributesOfFileSystemForPath:(NSString *)path error:(NSError **)error {
+    NSDictionary *orig = %orig;
+    if (!gDiskTotal || !gDiskFree || !orig) return orig;
+    NSMutableDictionary *d = [orig mutableCopy];
+    d[NSFileSystemSize]     = gDiskTotal;
+    d[NSFileSystemFreeSize] = gDiskFree;
+    return [d copy];
 }
 %end
 

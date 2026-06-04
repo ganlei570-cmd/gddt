@@ -9,6 +9,10 @@ NSString *gCarrierName = @"中国移动";
 NSString *gCarrierMCC  = @"460";
 NSString *gCarrierMNC  = @"00";
 NSString *gCarrierISO  = @"cn";
+NSString *gSysVer    = nil;
+NSNumber *gDiskTotal = nil;
+NSNumber *gDiskFree  = nil;
+NSString *gWifiMAC   = nil;
 NSMutableSet<NSString *> *gKeychainClearSet;
 NSMutableSet<NSString *> *gKeychainAllowedSet;
 
@@ -75,6 +79,10 @@ void loadProfile(void) {
     if (p[@"carrier_mnc"])  gCarrierMNC  = p[@"carrier_mnc"];
     if (p[@"carrier_iso"])  gCarrierISO  = p[@"carrier_iso"];
     if (p[@"device_name"])  gDeviceName  = p[@"device_name"];
+    if (p[@"sys_ver"])    gSysVer    = p[@"sys_ver"];
+    if (p[@"disk_total"]) gDiskTotal = @([p[@"disk_total"] unsignedLongLongValue]);
+    if (p[@"disk_free"])  gDiskFree  = @([p[@"disk_free"]  unsignedLongLongValue]);
+    if (p[@"wifi_mac"])   gWifiMAC   = p[@"wifi_mac"];
     if (p[@"keychain"])     gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
     tlog(@"profile_ok", @{@"idfv_prefix": [gIDFV substringToIndex:MIN(8u, gIDFV.length)]});
 }

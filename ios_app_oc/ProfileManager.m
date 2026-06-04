@@ -48,6 +48,16 @@ static NSArray<NSString *> *kcKeys(void) {
         @"的iPhone", @"手机", @"我的iPhone",
     ];
     NSString *deviceName = deviceNames[arc4random_uniform((uint32_t)deviceNames.count)];
+    NSString *osVer = [UIDevice currentDevice].systemVersion;
+    NSArray *verPool = [osVer hasPrefix:@"16"] ?
+        @[@"16.0",@"16.1",@"16.1.1",@"16.2",@"16.3",@"16.3.1",@"16.4",@"16.4.1",@"16.5",@"16.5.1",@"16.6",@"16.6.1"] :
+        @[@"15.4",@"15.4.1",@"15.5",@"15.6",@"15.6.1",@"15.7",@"15.7.1"];
+    NSString *sysVer = verPool[arc4random_uniform((uint32_t)verPool.count)];
+    static const long long kDisks[] = {62522933248LL,126282547200LL,252706160640LL,511430164480LL};
+    long long dTotal = kDisks[arc4random_uniform(4)] + ((long long)arc4random_uniform(3072)-1536)*1024*1024;
+    long long dFree  = dTotal / 100 * (20 + arc4random_uniform(41));
+    uint8_t mb[6]; arc4random_buf(mb, sizeof(mb)); mb[0] = (mb[0] & 0xFE) | 0x02;
+    NSString *wifiMac = [NSString stringWithFormat:@"%02x:%02x:%02x:%02x:%02x:%02x",mb[0],mb[1],mb[2],mb[3],mb[4],mb[5]];
     NSArray *carriers = @[
         @{@"carrier_name":@"中国移动",@"carrier_mcc":@"460",@"carrier_mnc":@"00",@"carrier_iso":@"cn"},
         @{@"carrier_name":@"中国移动",@"carrier_mcc":@"460",@"carrier_mnc":@"02",@"carrier_iso":@"cn"},
@@ -65,6 +75,10 @@ static NSArray<NSString *> *kcKeys(void) {
         @"keychain": kc, @"userdefaults": ud,
     } mutableCopy];
     [profile addEntriesFromDictionary:carrier];
+    profile[@"sys_ver"]    = sysVer;
+    profile[@"disk_total"] = @(dTotal);
+    profile[@"disk_free"]  = @(dFree);
+    profile[@"wifi_mac"]   = wifiMac;
     return [profile copy];
 }
 

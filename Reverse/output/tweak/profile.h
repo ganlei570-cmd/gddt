@@ -9,6 +9,10 @@ extern NSString *gCarrierName;
 extern NSString *gCarrierMCC;
 extern NSString *gCarrierMNC;
 extern NSString *gCarrierISO;
+extern NSString *gSysVer;
+extern NSNumber *gDiskTotal;
+extern NSNumber *gDiskFree;
+extern NSString *gWifiMAC;
 extern NSMutableSet<NSString *> *gKeychainClearSet;
 extern NSMutableSet<NSString *> *gKeychainAllowedSet;
 

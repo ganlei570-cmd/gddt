@@ -32,6 +32,16 @@ static BOOL shouldBlockKey(NSString *key) {
     return NO;
 }
 
+static CFDictionaryRef (*orig_CNCopyCurrentNetworkInfo)(CFStringRef) = NULL;
+static CFDictionaryRef hook_CNCopyCurrentNetworkInfo(CFStringRef iface) {
+    CFDictionaryRef orig = orig_CNCopyCurrentNetworkInfo(iface);
+    if (!gWifiMAC || !orig) return orig;
+    NSMutableDictionary *d = [(__bridge NSDictionary *)orig mutableCopy];
+    CFRelease(orig);
+    d[@"BSSID"] = gWifiMAC;
+    return CFBridgingRetain(d);
+}
+
 static OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemCopyMatching(CFDictionaryRef q, CFTypeRef *result) {
     NSString *key = kcQueryKey(q);
@@ -73,5 +83,8 @@ void installSpoofHooks(void) {
     MSHookFunction((void *)SecItemCopyMatching, (void *)hook_SecItemCopyMatching, (void **)&orig_SecItemCopyMatching);
     MSHookFunction((void *)SecItemAdd,    (void *)hook_SecItemAdd,    (void **)&orig_SecItemAdd);
     MSHookFunction((void *)SecItemUpdate, (void *)hook_SecItemUpdate, (void **)&orig_SecItemUpdate);
+    dlopen("/System/Library/Frameworks/SystemConfiguration.framework/SystemConfiguration", RTLD_NOW);
+    void *fnCN = dlsym(RTLD_DEFAULT, "CNCopyCurrentNetworkInfo");
+    if (fnCN) MSHookFunction(fnCN, (void *)hook_CNCopyCurrentNetworkInfo, (void **)&orig_CNCopyCurrentNetworkInfo);
     tlog(@"spoof_installed", nil);
 }

@@ -129,6 +129,11 @@ void loadProfile(void) {
         if ([arr isKindOfClass:[NSArray class]])
             [gKeychainAllowedSet addObjectsFromArray:arr];
     }
+    for (NSString *k in @[
+        @"com.amap.adiu.desencrypt/com.amap.adiu.desencrypt",
+        @"com.amap.ipc.link.port.info/com.amap.ipc.link.port.info",
+    ])
+        [gKeychainAllowedSet addObject:k];
     NSDictionary *p = diskProfile();
     if (!p) {
         if (didReset) preAllowResetKeys();

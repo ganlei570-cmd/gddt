@@ -237,7 +237,11 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
 
 - (void)clearAmapDataInContainer:(NSString *)container {
     NSFileManager *fm = [NSFileManager defaultManager];
-    [self clearDir:[container stringByAppendingPathComponent:@"Documents"] fm:fm];
+    NSString *docsPath = [container stringByAppendingPathComponent:@"Documents"];
+    for (NSString *item in [fm contentsOfDirectoryAtPath:docsPath error:nil]) {
+        if ([item isEqualToString:@"amap_profiles"]) continue;
+        [fm removeItemAtPath:[docsPath stringByAppendingPathComponent:item] error:nil];
+    }
     [self clearDir:[container stringByAppendingPathComponent:@"tmp"] fm:fm];
     NSString *lib = [container stringByAppendingPathComponent:@"Library"];
     for (NSString *sub in @[@"Caches", @"Application Support", @"WebKit", @"SplashBoard", @"Cookies", @"Preferences"]) {
@@ -275,8 +279,10 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
             if (kcData) {
                 NSMutableArray *arr = [[NSJSONSerialization JSONObjectWithData:kcData options:0 error:nil] mutableCopy];
                 if ([arr isKindOfClass:[NSArray class]]) {
-                    [arr removeObject:@"Soft/SGTMAGIC"];
-                    [arr removeObject:@"D7CA1CE6DE13787FD151D81C8E2C8C56/D7CA1CE6DE13787FD151D81C8E2C8C56"];
+                    NSMutableArray *toRemove = [NSMutableArray arrayWithArray:kcKeys()];
+                    [toRemove addObject:@"Soft/SGTMAGIC"];
+                    [toRemove addObject:@"D7CA1CE6DE13787FD151D81C8E2C8C56/D7CA1CE6DE13787FD151D81C8E2C8C56"];
+                    for (NSString *k in toRemove) [arr removeObject:k];
                     NSData *out = [NSJSONSerialization dataWithJSONObject:arr options:0 error:nil];
                     if (out) [out writeToFile:kcAllowedPath atomically:YES];
                 }

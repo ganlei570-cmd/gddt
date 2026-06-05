@@ -93,11 +93,6 @@ static OSStatus hook_SecItemCopyMatching(CFDictionaryRef q, CFTypeRef *result) {
         }
     }
     NSString *key = kcQueryKey(q);
-    if (gUTDID_gdAmap && [key isEqualToString:@"gd_amap/gd_amap"] && result) {
-        *result = CFBridgingRetain([gUTDID_gdAmap dataUsingEncoding:NSUTF8StringEncoding]);
-        tlog(@"utdid_spoofed", nil);
-        return errSecSuccess;
-    }
     if (shouldBlockKey(key)) {
         tlog(@"kc_blocked", @{@"key": key ?: @"nil"});
         if (result) *result = NULL;
@@ -109,8 +104,6 @@ static OSStatus hook_SecItemCopyMatching(CFDictionaryRef q, CFTypeRef *result) {
 static OSStatus (*orig_SecItemAdd)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemAdd(CFDictionaryRef attrs, CFTypeRef *result) {
     NSString *key = kcQueryKey(attrs);
-    if (gUTDID_gdAmap && [key isEqualToString:@"gd_amap/gd_amap"])
-        return errSecDuplicateItem;
     OSStatus r = orig_SecItemAdd(attrs, result);
     if (r == errSecSuccess && key && isAmapKey(key)) {
         @synchronized(gKeychainAllowedSet) { [gKeychainAllowedSet addObject:key]; }

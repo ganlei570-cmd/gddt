@@ -109,8 +109,6 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
     profile[@"disk_free"]  = @(dFree);
     profile[@"wifi_mac"]   = wifiMac;
     profile[@"utdid_gd_amap"]  = [NSUUID UUID].UUIDString.uppercaseString;
-    uint8_t adiuRaw[32]; arc4random_buf(adiuRaw, sizeof(adiuRaw));
-    profile[@"utdid_adiu_key"] = [[NSData dataWithBytes:adiuRaw length:32] base64EncodedStringWithOptions:0];
     return [profile copy];
 }
 
@@ -237,11 +235,7 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
 
 - (void)clearAmapDataInContainer:(NSString *)container {
     NSFileManager *fm = [NSFileManager defaultManager];
-    NSString *docsPath = [container stringByAppendingPathComponent:@"Documents"];
-    for (NSString *item in [fm contentsOfDirectoryAtPath:docsPath error:nil]) {
-        if ([item isEqualToString:@"amap_profiles"]) continue;
-        [fm removeItemAtPath:[docsPath stringByAppendingPathComponent:item] error:nil];
-    }
+    [self clearDir:[container stringByAppendingPathComponent:@"Documents"] fm:fm];
     [self clearDir:[container stringByAppendingPathComponent:@"tmp"] fm:fm];
     NSString *lib = [container stringByAppendingPathComponent:@"Library"];
     for (NSString *sub in @[@"Caches", @"Application Support", @"WebKit", @"SplashBoard", @"Cookies", @"Preferences"]) {
@@ -274,19 +268,6 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
             backupName = [self createBackupWithProfile:profile container:container];
             prog(@"正在清理高德数据...");
             [self clearAmapDataInContainer:container];
-            NSString *kcAllowedPath = [[self amapProfileDir] stringByAppendingPathComponent:@"kc_allowed.json"];
-            NSData *kcData = [NSData dataWithContentsOfFile:kcAllowedPath];
-            if (kcData) {
-                NSMutableArray *arr = [[NSJSONSerialization JSONObjectWithData:kcData options:0 error:nil] mutableCopy];
-                if ([arr isKindOfClass:[NSArray class]]) {
-                    NSMutableArray *toRemove = [NSMutableArray arrayWithArray:kcKeys()];
-                    [toRemove addObject:@"Soft/SGTMAGIC"];
-                    [toRemove addObject:@"D7CA1CE6DE13787FD151D81C8E2C8C56/D7CA1CE6DE13787FD151D81C8E2C8C56"];
-                    for (NSString *k in toRemove) [arr removeObject:k];
-                    NSData *out = [NSJSONSerialization dataWithJSONObject:arr options:0 error:nil];
-                    if (out) [out writeToFile:kcAllowedPath atomically:YES];
-                }
-            }
         } else {
             prog(@"未找到高德数据，直接生成新指纹...");
         }

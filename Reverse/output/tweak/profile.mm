@@ -68,13 +68,19 @@ static NSMutableSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
 }
 
 static void preAllowResetKeys(void) {
-    for (NSString *acct in @[@"tid", @"public_key"]) {
-        NSString *key = [@"com.autonavi.amap/" stringByAppendingString:acct];
+    NSArray *keys = @[
+        @"com.autonavi.amap/tid",
+        @"com.autonavi.amap/public_key",
+        @"com.amap.adiu.desencrypt/com.amap.adiu.desencrypt",
+        @"com.amap.ipc.link.port.info/com.amap.ipc.link.port.info",
+        @"com.alipay.alisecx.localstorage.G0qoiq-qnvodakfa/com.alipay.asssecuresdk.apdidc",
+    ];
+    for (NSString *key in keys) {
         @synchronized(gKeychainAllowedSet) { [gKeychainAllowedSet addObject:key]; }
         @synchronized(gKeychainClearSet)   { [gKeychainClearSet removeObject:key]; }
     }
     saveKeychainAllowed();
-    tlog(@"kc_pre_allowed", @{@"keys": @"tid,public_key"});
+    tlog(@"kc_pre_allowed", @{@"keys": @"tid,public_key,adiu.desencrypt,ipc.port,apdidc"});
 }
 
 void loadProfile(void) {
@@ -96,6 +102,13 @@ void loadProfile(void) {
             OSStatus r = SecItemDelete((__bridge CFDictionaryRef)kcQ);
             tlog(@"kc_force_delete", @{@"key": acct, @"result": @(r)});
         }
+        NSDictionary *adiuQ = @{
+            (__bridge id)kSecClass:       (__bridge id)kSecClassGenericPassword,
+            (__bridge id)kSecAttrService: @"com.amap.adiu.desencrypt",
+            (__bridge id)kSecAttrAccount: @"com.amap.adiu.desencrypt",
+        };
+        OSStatus rAdiu = SecItemDelete((__bridge CFDictionaryRef)adiuQ);
+        tlog(@"kc_force_delete", @{@"key": @"adiu.desencrypt", @"result": @(rAdiu)});
         [fm removeItemAtPath:flagPath error:nil];
         tlog(@"utdid_reset_done", nil);
     }

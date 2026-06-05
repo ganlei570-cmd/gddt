@@ -185,6 +185,19 @@ static int hook_kill(pid_t pid, int sig) {
     return orig_kill(pid, sig);
 }
 
+// ── Cookie 保护：阻止 DTHbalSe 批量清除 session（掉登录根因）─────────────
+static void (*orig_deleteCookie)(id, SEL, id);
+static void hook_deleteCookie(id self, SEL _cmd, id cookie) {
+    NSHTTPCookie *c = (NSHTTPCookie *)cookie;
+    NSString *domain = c.domain ?: @"";
+    if ([domain hasSuffix:@".amap.com"] || [domain hasSuffix:@".alipay.com"] ||
+        [domain isEqualToString:@"amap.com"] || [domain isEqualToString:@"alipay.com"]) {
+        tlog(@"cookie_protected", @{@"domain": domain, @"name": c.name ?: @""});
+        return;
+    }
+    orig_deleteCookie(self, _cmd, cookie);
+}
+
 static void hookAntiDebug(void) {
     MH("ptrace",  hook_ptrace,  &orig_ptrace);
     MH("sysctl",  hook_sysctl,  &orig_sysctl);
@@ -216,5 +229,10 @@ void installBypassHooks(void) {
     hookEnvDetect();
     dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW);
     MH("IORegistryEntryCreateCFProperty", hook_IORegCreateCFProp, &orig_IORegCreateCFProp);
+    MSHookMessageEx(
+        NSClassFromString(@"NSHTTPCookieStorage"),
+        @selector(deleteCookie:),
+        (IMP)hook_deleteCookie,
+        (IMP *)&orig_deleteCookie);
     tlog(@"bypass_installed", nil);
 }

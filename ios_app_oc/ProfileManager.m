@@ -270,9 +270,6 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
             backupName = [self createBackupWithProfile:profile container:container];
             prog(@"正在清理高德数据...");
             [self clearAmapDataInContainer:container];
-            // 删除 allowed keychain 记录，让 tweak 下次启动对所有 amap key 全量拦截
-            [[NSFileManager defaultManager] removeItemAtPath:
-                [[self amapProfileDir] stringByAppendingPathComponent:@"kc_allowed.json"] error:nil];
         } else {
             prog(@"未找到高德数据，直接生成新指纹...");
         }

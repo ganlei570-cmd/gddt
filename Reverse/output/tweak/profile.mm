@@ -74,6 +74,7 @@ static void preAllowResetKeys(void) {
         @"com.amap.adiu.desencrypt/com.amap.adiu.desencrypt",
         @"com.amap.ipc.link.port.info/com.amap.ipc.link.port.info",
         @"com.alipay.alisecx.localstorage.G0qoiq-qnvodakfa/com.alipay.asssecuresdk.apdidc",
+        @"com.amap.adiu.key/com.amap.adiu.key",
     ];
     for (NSString *key in keys) {
         @synchronized(gKeychainAllowedSet) { [gKeychainAllowedSet addObject:key]; }
@@ -109,6 +110,13 @@ void loadProfile(void) {
         };
         OSStatus rAdiu = SecItemDelete((__bridge CFDictionaryRef)adiuQ);
         tlog(@"kc_force_delete", @{@"key": @"adiu.desencrypt", @"result": @(rAdiu)});
+        NSDictionary *adiuKeyQ = @{
+            (__bridge id)kSecClass:       (__bridge id)kSecClassGenericPassword,
+            (__bridge id)kSecAttrService: @"com.amap.adiu.key",
+            (__bridge id)kSecAttrAccount: @"com.amap.adiu.key",
+        };
+        OSStatus rAdiuKey = SecItemDelete((__bridge CFDictionaryRef)adiuKeyQ);
+        tlog(@"kc_force_delete", @{@"key": @"adiu.key", @"result": @(rAdiuKey)});
         [fm removeItemAtPath:flagPath error:nil];
         tlog(@"utdid_reset_done", nil);
     }

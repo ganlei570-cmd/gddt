@@ -56,7 +56,6 @@
 - (void)logout:(id)arg {
     tlog(@"logout_blocked", @{@"m": @"logout"});
 }
-- (BOOL)isLogin { return YES; }
 %end
 
 %hook ALBBLoginCenter
@@ -78,7 +77,6 @@
 - (void)logout { }
 - (void)logout:(id)arg { }
 - (void)clearSession { }
-- (BOOL)isLogin { return YES; }
 %end
 
 %hook GDAccountAmapModel

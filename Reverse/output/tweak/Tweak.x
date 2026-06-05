@@ -48,6 +48,31 @@
 %end
 %end
 
+// ── NSURLSession HTTP 响应诊断 ──────────────────────────────────
+%group GNetworkDiag
+%hook NSURLSession
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
+                             completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))completionHandler {
+    NSString *host = request.URL.host ?: @"";
+    BOOL isAmap = [host containsString:@"amap"] || [host containsString:@"autonavi"];
+    if (!isAmap || !completionHandler) return %orig;
+    NSString *rawPath = request.URL.path ?: @"";
+    NSString *path = [rawPath substringToIndex:MIN((NSUInteger)60, rawPath.length)];
+    void (^wrapped)(NSData *, NSURLResponse *, NSError *) = ^(NSData *d, NSURLResponse *r, NSError *e) {
+        if ([r isKindOfClass:[NSHTTPURLResponse class]]) {
+            NSInteger s = ((NSHTTPURLResponse *)r).statusCode;
+            if (s != 200 || [path containsString:@"poi"] || [path containsString:@"user"] || [path containsString:@"auth"])
+                tlog(@"http", @{@"path": path, @"s": @(s)});
+        } else if (e) {
+            tlog(@"http_err", @{@"path": path, @"e": @(e.code)});
+        }
+        completionHandler(d, r, e);
+    };
+    return %orig(request, wrapped);
+}
+%end
+%end
+
 // ── 初始化 ────────────────────────────────────────────────────
 // 顺序：loadProfile（读 JSON） → bypass（安装 C hook） → spoof（Keychain/Prefs）
 // → dlopen AdSupport → %init(GAdSupport)
@@ -66,6 +91,7 @@
             %init(GAdSupport);
             dlopen("/System/Library/Frameworks/CoreTelephony.framework/CoreTelephony", RTLD_NOW);
             %init(GCoreTelephony);
+            %init(GNetworkDiag);
         }
     }
 }

@@ -48,21 +48,6 @@
 %end
 %end
 
-// ── HTTP 响应诊断（只读 statusCode，不碰 handler）──────────────
-%hook NSHTTPURLResponse
-- (NSInteger)statusCode {
-    NSInteger s = %orig;
-    NSString *host = self.URL.host ?: @"";
-    if ([host containsString:@"amap"] || [host containsString:@"autonavi"]) {
-        NSString *path = self.URL.path ?: @"";
-        if (s != 200 || [path containsString:@"poi"] ||
-            [path containsString:@"user"] || [path containsString:@"auth"])
-            tlog(@"http", @{@"path": [path substringToIndex:MIN(60u, path.length)], @"s": @(s)});
-    }
-    return s;
-}
-%end
-
 // ── 初始化 ────────────────────────────────────────────────────
 // 顺序：loadProfile（读 JSON） → bypass（安装 C hook） → spoof（Keychain/Prefs）
 // → dlopen AdSupport → %init(GAdSupport)

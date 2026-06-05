@@ -48,6 +48,44 @@
 %end
 %end
 
+// ── 登录保护 —— 拦截 DTHbalSe 强制踢登录 ──────────────────────
+%hook GDAccountCoreService
+- (void)forceLogoutWithReason:(id)reason completeBlock:(id)block {
+    tlog(@"logout_blocked", @{@"m": @"forceLogout"});
+}
+- (void)logout:(id)arg {
+    tlog(@"logout_blocked", @{@"m": @"logout"});
+}
+- (BOOL)isLogin { return YES; }
+%end
+
+%hook ALBBLoginCenter
+- (void)logout { }
+- (void)logout:(id)arg { }
+- (void)logoutAllAccounts { }
+- (void)logoutWithCallBack:(id)cb { }
+- (void)logoutWithClearSessionOnlyCookie:(id)arg { }
+%end
+
+%hook ALBBLogoutService
++ (void)logout { }
++ (void)logout:(id)arg { }
++ (void)logoutAllAccounts { }
++ (void)logoutWithCallBack:(id)cb { }
+%end
+
+%hook ALBBSession
+- (void)logout { }
+- (void)logout:(id)arg { }
+- (void)clearSession { }
+- (BOOL)isLogin { return YES; }
+%end
+
+%hook GDAccountAmapModel
+- (void)forceLogoutWithReason:(id)reason completeBlock:(id)block { }
+- (void)logout:(id)arg { }
+%end
+
 // ── 初始化 ────────────────────────────────────────────────────
 // 顺序：loadProfile（读 JSON） → bypass（安装 C hook） → spoof（Keychain/Prefs）
 // → dlopen AdSupport → %init(GAdSupport)

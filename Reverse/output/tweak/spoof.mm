@@ -20,9 +20,6 @@ static NSString *kcQueryKey(CFDictionaryRef q) {
 static BOOL isAmapKey(NSString *key) {
     if (!key) return NO;
     if ([key containsString:@"amap"] || [key containsString:@"autonavi"]) return YES;
-    if ([key hasPrefix:@"com.alipay.alisecx"] || [key hasPrefix:@"com.alipay.asssecuresdk"]) return YES;
-    if ([key hasPrefix:@"0.umid_v1/"] || [key hasPrefix:@"0.apdid_v1/"]) return YES;
-    if ([key hasPrefix:@"Soft/"] || [key hasPrefix:@"D7CA1CE6"]) return YES;
     return NO;
 }
 

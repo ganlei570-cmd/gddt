@@ -67,16 +67,35 @@ static NSMutableSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
     return s;
 }
 
+static void preAllowResetKeys(void) {
+    for (NSString *acct in @[@"tid", @"public_key"]) {
+        NSString *key = [@"com.autonavi.amap/" stringByAppendingString:acct];
+        @synchronized(gKeychainAllowedSet) { [gKeychainAllowedSet addObject:key]; }
+        @synchronized(gKeychainClearSet)   { [gKeychainClearSet removeObject:key]; }
+    }
+    saveKeychainAllowed();
+    tlog(@"kc_pre_allowed", @{@"keys": @"tid,public_key"});
+}
 
 void loadProfile(void) {
     NSString *flagPath = [amapProfileDir() stringByAppendingPathComponent:@"utdid_reset.flag"];
     NSFileManager *fm = [NSFileManager defaultManager];
-    if ([fm fileExistsAtPath:flagPath]) {
+    BOOL didReset = [fm fileExistsAtPath:flagPath];
+    if (didReset) {
         NSDictionary *q = @{
             (__bridge id)kSecClass:           (__bridge id)kSecClassGenericPassword,
             (__bridge id)kSecAttrAccessGroup: @"Q6552JDTRL.com.autonavi.utdid",
         };
         SecItemDelete((__bridge CFDictionaryRef)q);
+        for (NSString *acct in @[@"tid", @"public_key"]) {
+            NSDictionary *kcQ = @{
+                (__bridge id)kSecClass:       (__bridge id)kSecClassGenericPassword,
+                (__bridge id)kSecAttrService: @"com.autonavi.amap",
+                (__bridge id)kSecAttrAccount: acct,
+            };
+            OSStatus r = SecItemDelete((__bridge CFDictionaryRef)kcQ);
+            tlog(@"kc_force_delete", @{@"key": acct, @"result": @(r)});
+        }
         [fm removeItemAtPath:flagPath error:nil];
         tlog(@"utdid_reset_done", nil);
     }
@@ -91,6 +110,7 @@ void loadProfile(void) {
     }
     NSDictionary *p = diskProfile();
     if (!p) {
+        if (didReset) preAllowResetKeys();
         tlog(@"profile_fail", @{@"reason": @"file_not_found"});
         return;
     }
@@ -111,5 +131,6 @@ void loadProfile(void) {
     if (p[@"keychain"])          gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
     if (p[@"utdid_gd_amap"])  gUTDID_gdAmap  = p[@"utdid_gd_amap"];
     if (p[@"utdid_adiu_key"]) gUTDID_adiuKey = p[@"utdid_adiu_key"];
+    if (didReset) preAllowResetKeys();
     tlog(@"profile_ok", @{@"idfv_prefix": [gIDFV substringToIndex:MIN(8u, gIDFV.length)]});
 }

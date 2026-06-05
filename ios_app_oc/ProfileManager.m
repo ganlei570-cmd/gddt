@@ -270,6 +270,17 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
             backupName = [self createBackupWithProfile:profile container:container];
             prog(@"正在清理高德数据...");
             [self clearAmapDataInContainer:container];
+            NSString *kcAllowedPath = [[self amapProfileDir] stringByAppendingPathComponent:@"kc_allowed.json"];
+            NSData *kcData = [NSData dataWithContentsOfFile:kcAllowedPath];
+            if (kcData) {
+                NSMutableArray *arr = [[NSJSONSerialization JSONObjectWithData:kcData options:0 error:nil] mutableCopy];
+                if ([arr isKindOfClass:[NSArray class]]) {
+                    [arr removeObject:@"Soft/SGTMAGIC"];
+                    [arr removeObject:@"D7CA1CE6DE13787FD151D81C8E2C8C56/D7CA1CE6DE13787FD151D81C8E2C8C56"];
+                    NSData *out = [NSJSONSerialization dataWithJSONObject:arr options:0 error:nil];
+                    if (out) [out writeToFile:kcAllowedPath atomically:YES];
+                }
+            }
         } else {
             prog(@"未找到高德数据，直接生成新指纹...");
         }

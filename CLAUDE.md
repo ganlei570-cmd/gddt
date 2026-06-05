@@ -207,13 +207,13 @@ IPA 和 deb 必须同时兼容 arm64（A11 及以下）和 arm64e（A12+）机�
 4. **验证方法**：`lipo -archs <binary>` 必须同时输出 `arm64 arm64e`；缺任一架构的产物禁止放入 `dist/`
 
 ### dist/ 版本编号规则（强制）
-每次编译输出新文件到 `dist/` 时：
-1. 查找当前 `dist/` 里同类文件的最大版本号（格式 `_vN`）
-2. 新文件命名加 `_v{N+1}`，例如：
-   - IPA：`YiJianXinJi_v1.ipa` → `YiJianXinJi_v2.ipa`
-   - deb：`com.dev.amapnewdevice_1.0.0_iphoneos-arm64_v1.deb` → `_v2.deb`
-3. **保留旧版本，不删除**，便于回滚对比
-4. 若当前无版本号文件，从 `_v1` 开始
+每次出新版，**deb 和 IPA 必须同时出，编号一致**：
+1. 查找当前 `dist/` 里最大版本号 N，新版本用 N+1
+2. deb 代码没改 → 复制上一版 deb 改名（不需要重编）
+3. IPA 代码没改 → CI 出的 IPA 直接用，同步更新 `Info.plist` 版本号
+4. **每次出版必须同时更新 `ios_app_oc/Info.plist` 的 `CFBundleVersion` 和 `CFBundleShortVersionString`**
+5. 用户自己安装，Claude 只负责把文件放进 `dist/` 并 push，**禁止通过 SSH 推到手机**
+6. **保留旧版本，不删除**，便于回滚对比
 
 ### Frida 脚本分工（严格，禁止混写）
 | 文件 | 职责 |

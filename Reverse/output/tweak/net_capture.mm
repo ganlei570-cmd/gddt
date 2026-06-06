@@ -16,7 +16,7 @@ static NSData *tryGunzip(const void *data, size_t len) {
     strm.avail_in = (uInt)len;
     if (inflateInit2(&strm, 15 + 16) != Z_OK) return nil;
     NSMutableData *out = [NSMutableData dataWithLength:len * 6 + 1024];
-    strm.next_out  = out.mutableBytes;
+    strm.next_out  = (Bytef *)out.mutableBytes;
     strm.avail_out = (uInt)out.length;
     int ret = inflate(&strm, Z_FINISH);
     inflateEnd(&strm);

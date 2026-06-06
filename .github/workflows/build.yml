@@ -35,14 +35,40 @@ jobs:
 
       - name: Build IPA (arm64 + arm64e)
         run: |
-          cd ios_app_oc
-          make FINALPACKAGE=1
-          APP=$(find . -name "YiJianXinJi.app" -type d | grep -v obj/before | head -1)
-          mkdir -p /tmp/Payload
-          cp -r "$APP" /tmp/Payload/YiJianXinJi.app
-          cd /tmp && zip -qr YiJianXinJi.ipa Payload/
-          mkdir -p "$GITHUB_WORKSPACE/ios_app_oc/packages"
-          cp /tmp/YiJianXinJi.ipa "$GITHUB_WORKSPACE/ios_app_oc/packages/YiJianXinJi.ipa"
+          mkdir -p ios_app_oc/packages
+          BEFORE="${{ github.event.before }}"
+          CHANGED_IPA=false
+          if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE" 2>/dev/null; then
+            git diff --name-only "$BEFORE" "${{ github.sha }}" | grep -q '^ios_app_oc/' && CHANGED_IPA=true
+          else
+            git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q '^ios_app_oc/' && CHANGED_IPA=true
+          fi
+          if [ "$CHANGED_IPA" = "true" ]; then
+            echo "ios_app_oc changed, building IPA..."
+            cd ios_app_oc
+            make FINALPACKAGE=1
+            APP=$(find . -name "YiJianXinJi.app" -type d | grep -v obj/before | head -1)
+            mkdir -p /tmp/Payload
+            cp -r "$APP" /tmp/Payload/YiJianXinJi.app
+            cd /tmp && zip -qr YiJianXinJi.ipa Payload/
+            cp /tmp/YiJianXinJi.ipa "$GITHUB_WORKSPACE/ios_app_oc/packages/YiJianXinJi.ipa"
+          else
+            echo "ios_app_oc unchanged, reusing previous IPA..."
+            LAST_IPA=$(ls dist/YiJianXinJi_v*.ipa 2>/dev/null | sort -V | tail -1)
+            if [ -n "$LAST_IPA" ]; then
+              cp "$LAST_IPA" ios_app_oc/packages/YiJianXinJi.ipa
+              echo "Copied $LAST_IPA"
+            else
+              echo "No previous IPA found, building from scratch..."
+              cd ios_app_oc
+              make FINALPACKAGE=1
+              APP=$(find . -name "YiJianXinJi.app" -type d | grep -v obj/before | head -1)
+              mkdir -p /tmp/Payload
+              cp -r "$APP" /tmp/Payload/YiJianXinJi.app
+              cd /tmp && zip -qr YiJianXinJi.ipa Payload/
+              cp /tmp/YiJianXinJi.ipa "$GITHUB_WORKSPACE/ios_app_oc/packages/YiJianXinJi.ipa"
+            fi
+          fi
 
       - name: Verify architectures
         run: |

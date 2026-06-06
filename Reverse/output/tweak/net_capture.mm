@@ -1,13 +1,28 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
+#import <Security/SecureTransport.h>
+#import <dlfcn.h>
 #import <substrate.h>
 #import "tlog.h"
 #import "net_capture.h"
 
-static BOOL isAmapUrl(NSString *u) {
-    if (!u) return NO;
-    return [u containsString:@"shield"] || [u containsString:@"passport.amap"] ||
-           [u containsString:@"adiu"] || [u containsString:@"m5-x"] || [u containsString:@"m5.amap"];
+static BOOL isRelevant(NSString *s) {
+    if (!s) return NO;
+    return [s containsString:@"gsId"] || [s containsString:@"adiu"] ||
+           [s containsString:@"risk"]  || [s containsString:@"\"data\":false"] ||
+           [s containsString:@"shield"] || [s containsString:@"passport"];
+}
+
+static OSStatus (*orig_SSLRead)(SSLContextRef, void *, size_t, size_t *);
+static OSStatus hook_SSLRead(SSLContextRef ctx, void *data, size_t dataLen, size_t *processed) {
+    OSStatus r = orig_SSLRead(ctx, data, dataLen, processed);
+    if (r != 0 || !processed || *processed < 20) return r;
+    @try {
+        NSString *s = [[NSString alloc] initWithBytes:data length:*processed encoding:NSUTF8StringEncoding];
+        if (isRelevant(s))
+            tlog(@"ssl_resp", @{@"s": s.length > 500 ? [s substringToIndex:500] : s});
+    } @catch(id e) {}
+    return r;
 }
 
 @interface AmapNetSpy : NSObject
@@ -28,7 +43,7 @@ static BOOL isAmapUrl(NSString *u) {
 - (void)URLSession:(NSURLSession *)sess dataTask:(NSURLSessionDataTask *)t didReceiveData:(NSData *)d {
     @try {
         NSString *u = t.currentRequest.URL.absoluteString ?: @"";
-        if (isAmapUrl(u)) {
+        if ([u containsString:@"amap.com"]) {
             NSString *b = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] ?: @"[bin]";
             tlog(@"resp_data", @{
                 @"u": u.length > 120 ? [u substringToIndex:120] : u,
@@ -44,7 +59,7 @@ static BOOL isAmapUrl(NSString *u) {
 - (void)URLSession:(NSURLSession *)sess task:(NSURLSessionTask *)t didCompleteWithError:(NSError *)e {
     @try {
         NSString *u = t.currentRequest.URL.absoluteString ?: @"";
-        if (isAmapUrl(u))
+        if ([u containsString:@"amap.com"])
             tlog(@"resp_done", @{
                 @"u": u.length > 120 ? [u substringToIndex:120] : u,
                 @"e": e.localizedDescription ?: @""
@@ -67,26 +82,12 @@ static id hook_newSess(id s, SEL c, NSURLSessionConfiguration *cfg, id d, NSOper
     return orig_newSess(s, c, cfg, d, q);
 }
 
-static void (*orig_task_resume)(id, SEL);
-static void hook_task_resume(id self, SEL cmd) {
-    @try {
-        NSURLSessionTask *t = (NSURLSessionTask *)self;
-        NSString *u = (t.currentRequest ?: t.originalRequest).URL.absoluteString;
-        if (isAmapUrl(u))
-            tlog(@"net_url", @{@"u": u.length > 150 ? [u substringToIndex:150] : u});
-    } @catch(id e) {}
-    orig_task_resume(self, cmd);
-}
-
 void installNetCaptureHooks(void) {
+    void *fn = dlsym(RTLD_DEFAULT, "SSLRead");
+    if (fn) MSHookFunction(fn, (void *)hook_SSLRead, (void **)&orig_SSLRead);
     MSHookMessageEx(
         object_getClass(NSClassFromString(@"NSURLSession")),
         @selector(sessionWithConfiguration:delegate:delegateQueue:),
         (IMP)hook_newSess,
         (IMP *)&orig_newSess);
-    MSHookMessageEx(
-        NSClassFromString(@"NSURLSessionTask"),
-        @selector(resume),
-        (IMP)hook_task_resume,
-        (IMP *)&orig_task_resume);
 }

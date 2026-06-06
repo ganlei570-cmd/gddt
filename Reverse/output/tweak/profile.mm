@@ -2,7 +2,7 @@
 #import "tlog.h"
 #import <Security/Security.h>
 
-NSString *gIDFV = @"A1B2C3D4-E5F6-7890-ABCD-EF1234567890";
+NSString *gIDFV = nil;
 NSString *gIDFA = @"00000000-0000-0000-0000-000000000000";
 NSString *gMachine    = nil;
 NSString *gDeviceName = @"iPhone";
@@ -52,6 +52,8 @@ static NSString *findActiveProfilePath(void) {
     return [amapProfileDir() stringByAppendingPathComponent:@"active.json"];
 }
 
+static NSString * const kBadIDFV = @"A1B2C3D4-E5F6-7890-ABCD-EF1234567890";
+
 static NSDictionary *diskProfile(void) {
     NSString *path = findActiveProfilePath();
     if (!path) return nil;
@@ -73,7 +75,6 @@ static void preAllowResetKeys(void) {
         @"com.autonavi.amap/public_key",
         @"com.amap.adiu.desencrypt/com.amap.adiu.desencrypt",
         @"com.amap.ipc.link.port.info/com.amap.ipc.link.port.info",
-        @"com.alipay.alisecx.localstorage.G0qoiq-qnvodakfa/com.alipay.asssecuresdk.apdidc",
         @"com.amap.adiu.key/com.amap.adiu.key",
     ];
     for (NSString *key in keys) {
@@ -81,7 +82,7 @@ static void preAllowResetKeys(void) {
         @synchronized(gKeychainClearSet)   { [gKeychainClearSet removeObject:key]; }
     }
     saveKeychainAllowed();
-    tlog(@"kc_pre_allowed", @{@"keys": @"tid,public_key,adiu.desencrypt,ipc.port,apdidc"});
+    tlog(@"kc_pre_allowed", @{@"keys": @"tid,public_key,adiu.desencrypt,ipc.port,adiu.key"});
 }
 
 void loadProfile(void) {
@@ -118,6 +119,25 @@ void loadProfile(void) {
         OSStatus rAdiuKey = SecItemDelete((__bridge CFDictionaryRef)adiuKeyQ);
         tlog(@"kc_force_delete", @{@"key": @"adiu.key", @"result": @(rAdiuKey)});
         [fm removeItemAtPath:flagPath error:nil];
+        // 删除 ALBB 安全 SDK 设备标识 — 每次新机必须重新生成，否则服务端认出同一设备
+        NSString * const kALBBSvc = @"com.alipay.alisecx.localstorage.G0qoiq-qnvodakfa";
+        for (NSString *acct in @[
+            @"com.alipay.securesdk.ranstr",
+            @"com.alipay.securesdk.storage",
+            @"com.alipay.asssecuresdk.config",
+            @"com.alipay.asssecuresdk.apdidc",
+        ]) {
+            NSDictionary *q = @{
+                (__bridge id)kSecClass:       (__bridge id)kSecClassGenericPassword,
+                (__bridge id)kSecAttrService: kALBBSvc,
+                (__bridge id)kSecAttrAccount: acct,
+            };
+            OSStatus r = SecItemDelete((__bridge CFDictionaryRef)q);
+            tlog(@"kc_force_delete", @{@"key": acct, @"result": @(r)});
+        }
+        // 清空持久化 allowed 列表，防止旧 session 状态跨 reset 保留
+        NSString *allowedPath = [amapProfileDir() stringByAppendingPathComponent:@"kc_allowed.json"];
+        [fm removeItemAtPath:allowedPath error:nil];
         tlog(@"utdid_reset_done", nil);
     }
     gKeychainClearSet = defaultKCSet();
@@ -136,11 +156,27 @@ void loadProfile(void) {
         [gKeychainAllowedSet addObject:k];
     NSDictionary *p = diskProfile();
     if (!p) {
+        // 无 profile → 生成随机 IDFV 写入最简 active.json，避免每次用同一固定值被服务端识别
+        gIDFV = [NSUUID UUID].UUIDString;
+        NSString *dir = amapProfileDir();
+        [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+        NSDictionary *minimal = @{@"idfv": gIDFV, @"idfa": @"00000000-0000-0000-0000-000000000000"};
+        NSData *minData = [NSJSONSerialization dataWithJSONObject:minimal options:0 error:nil];
+        [minData writeToFile:findActiveProfilePath() atomically:YES];
         if (didReset) preAllowResetKeys();
-        tlog(@"profile_fail", @{@"reason": @"file_not_found"});
+        tlog(@"profile_auto_generated", @{@"idfv": gIDFV});
         return;
     }
     if (p[@"idfv"])    gIDFV = p[@"idfv"];
+    // 已知坏值（曾被服务端拉黑）→ 强制替换并回写 profile
+    if (!gIDFV || [gIDFV isEqualToString:kBadIDFV]) {
+        gIDFV = [NSUUID UUID].UUIDString;
+        NSMutableDictionary *mp = [p mutableCopy];
+        mp[@"idfv"] = gIDFV;
+        NSData *ud = [NSJSONSerialization dataWithJSONObject:mp options:0 error:nil];
+        [ud writeToFile:findActiveProfilePath() atomically:YES];
+        tlog(@"idfv_auto_replaced", @{@"idfv": gIDFV});
+    }
     if (p[@"idfa"])    gIDFA = p[@"idfa"];
     if (p[@"machine"]) gMachine = p[@"machine"];
     if (p[@"carrier_name"]) gCarrierName = p[@"carrier_name"];

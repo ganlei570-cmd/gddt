@@ -2,9 +2,28 @@
 #import <objc/runtime.h>
 #import <Security/SecureTransport.h>
 #import <dlfcn.h>
+#import <zlib.h>
 #import <substrate.h>
 #import "tlog.h"
 #import "net_capture.h"
+
+static NSData *tryGunzip(const void *data, size_t len) {
+    if (len < 10) return nil;
+    const uint8_t *b = (const uint8_t *)data;
+    if (b[0] != 0x1f || b[1] != 0x8b) return nil;
+    z_stream strm = {0};
+    strm.next_in  = (Bytef *)data;
+    strm.avail_in = (uInt)len;
+    if (inflateInit2(&strm, 15 + 16) != Z_OK) return nil;
+    NSMutableData *out = [NSMutableData dataWithLength:len * 6 + 1024];
+    strm.next_out  = out.mutableBytes;
+    strm.avail_out = (uInt)out.length;
+    int ret = inflate(&strm, Z_FINISH);
+    inflateEnd(&strm);
+    if (ret != Z_STREAM_END) return nil;
+    out.length = strm.total_out;
+    return out;
+}
 
 static BOOL isRelevant(NSString *s) {
     if (!s) return NO;
@@ -21,9 +40,15 @@ static OSStatus hook_SSLRead(SSLContextRef ctx, void *data, size_t dataLen, size
     OSStatus r = orig_SSLRead(ctx, data, dataLen, processed);
     if (r != 0 || !processed || *processed < 20) return r;
     @try {
-        NSString *s = [[NSString alloc] initWithBytes:data length:*processed encoding:NSUTF8StringEncoding];
+        NSString *s = nil;
+        NSData *gz = tryGunzip(data, *processed);
+        if (gz) {
+            s = [[NSString alloc] initWithData:gz encoding:NSUTF8StringEncoding];
+        } else {
+            s = [[NSString alloc] initWithBytes:data length:*processed encoding:NSUTF8StringEncoding];
+        }
         if (isRelevant(s))
-            tlog(@"ssl_resp", @{@"s": s.length > 500 ? [s substringToIndex:500] : s});
+            tlog(@"ssl_resp", @{@"gz": @(gz != nil), @"s": s.length > 800 ? [s substringToIndex:800] : s});
     } @catch(id e) {}
     return r;
 }

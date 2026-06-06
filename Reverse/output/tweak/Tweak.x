@@ -10,6 +10,7 @@
 #import "spoof.h"
 #import "clean.h"
 #import "tlog.h"
+#import "net_capture.h"
 
 // ── UIKit hooks（UIKit 必定已加载，无需 %group）────────────────
 %hook UIDevice
@@ -97,6 +98,7 @@
             installBypassHooks();
             installSpoofHooks();
             initCleanHooks();
+            installNetCaptureHooks();
             %init;
             dlopen("/System/Library/Frameworks/AdSupport.framework/AdSupport", RTLD_NOW);
             %init(GAdSupport);

@@ -8,9 +8,12 @@
 
 static BOOL isRelevant(NSString *s) {
     if (!s) return NO;
-    return [s containsString:@"gsId"] || [s containsString:@"adiu"] ||
+    return [s containsString:@"gsId"]  || [s containsString:@"adiu"]  ||
            [s containsString:@"risk"]  || [s containsString:@"\"data\":false"] ||
-           [s containsString:@"shield"] || [s containsString:@"passport"];
+           [s containsString:@"shield"]|| [s containsString:@"passport"] ||
+           [s containsString:@"Params error"] || [s containsString:@"\"result\":false"] ||
+           [s containsString:@"onekey"]|| [s containsString:@"verifycode"] ||
+           [s containsString:@"register"];
 }
 
 static OSStatus (*orig_SSLRead)(SSLContextRef, void *, size_t, size_t *);

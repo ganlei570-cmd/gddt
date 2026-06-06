@@ -186,14 +186,6 @@ static int hook_kill(pid_t pid, int sig) {
     return orig_kill(pid, sig);
 }
 
-// ── DTHbalSe 风控上报（amapstream/upload）──────────────────────────────────
-// 不拦截：服务器需要收到设备指纹才能放行登录，拦截会导致"网络环境存在风险"
-// tlog 仅用于观测，不阻断请求
-static BOOL isShieldRiskPath(NSString *p) {
-    if (!p) return NO;
-    return [p containsString:@"/shield/amapstream/upload"] ||
-           [p containsString:@"/shield/nest/updatable/v1/log"];
-}
 
 // ── Cookie 保护：阻止 DTHbalSe 批量清除 session（掉登录根因）─────────────
 static void (*orig_deleteCookie)(id, SEL, id);

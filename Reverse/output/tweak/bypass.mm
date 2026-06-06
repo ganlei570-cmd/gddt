@@ -190,6 +190,76 @@ static int hook_kill(pid_t pid, int sig) {
 
 
 // ── Cookie 保护：阻止 DTHbalSe 批量清除 session（掉登录根因）─────────────
+// ── DTHbalSe shield 响应拦截：data:false → data:true ──────────────
+static id (*orig_JSONObjectWithData)(id, SEL, NSData *, NSJSONReadingOptions, NSError **);
+static id hook_JSONObjectWithData(id self, SEL cmd, NSData *data, NSJSONReadingOptions opts, NSError **err) {
+    id result = orig_JSONObjectWithData(self, cmd, data, opts, err);
+    if (![result isKindOfClass:[NSDictionary class]]) return result;
+    NSDictionary *d = (NSDictionary *)result;
+    if (d[@"gsId"] && [d[@"result"] boolValue] && [d[@"data"] isEqual:@NO]) {
+        NSMutableDictionary *p = [d mutableCopy];
+        p[@"data"] = @YES;
+        tlog(@"shield_patched", @{@"gsId": d[@"gsId"] ?: @""});
+        return [p copy];
+    }
+    return result;
+}
+
+// ── DTHbalSe 风控上报：透传 amapstream/upload，把响应 "data":false → "data":true ──
+@interface AmapShieldProtocol : NSURLProtocol <NSURLSessionDataDelegate>
+@property NSMutableData *buf;
+@property NSURLSessionDataTask *fwd;
+@property NSURLSession *sess;
+@end
+@implementation AmapShieldProtocol
++ (BOOL)canInitWithRequest:(NSURLRequest *)r {
+    if ([NSURLProtocol propertyForKey:@"_asp" inRequest:r]) return NO;
+    NSString *p = r.URL.path;
+    return p && ([p containsString:@"/shield/amapstream/upload"] || [p containsString:@"/shield/nest/updatable/v1/log"]);
+}
++ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)r { return r; }
+- (void)startLoading {
+    NSMutableURLRequest *mr = [self.request mutableCopy];
+    [NSURLProtocol setProperty:@1 forKey:@"_asp" inRequest:mr];
+    NSURLSessionConfiguration *c = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    c.protocolClasses = @[];
+    self.buf = [NSMutableData data];
+    self.sess = [NSURLSession sessionWithConfiguration:c delegate:self delegateQueue:nil];
+    self.fwd = [self.sess dataTaskWithRequest:mr];
+    [self.fwd resume];
+}
+- (void)stopLoading { [self.fwd cancel]; [self.sess invalidateAndCancel]; }
+- (void)URLSession:(NSURLSession *)s dataTask:(NSURLSessionDataTask *)t didReceiveResponse:(NSURLResponse *)r completionHandler:(void(^)(NSURLSessionResponseDisposition))h {
+    [self.client URLProtocol:self didReceiveResponse:r cacheStoragePolicy:NSURLCacheStorageNotAllowed]; h(NSURLSessionResponseAllow);
+}
+- (void)URLSession:(NSURLSession *)s dataTask:(NSURLSessionDataTask *)t didReceiveData:(NSData *)d { [self.buf appendData:d]; }
+- (void)URLSession:(NSURLSession *)s task:(NSURLSessionTask *)t didCompleteWithError:(NSError *)e {
+    NSData *out = self.buf;
+    if (!e) {
+        NSString *str = [[NSString alloc] initWithData:out encoding:NSUTF8StringEncoding];
+        if (str && [str containsString:@"\"data\":false"]) {
+            NSData *d = [[str stringByReplacingOccurrencesOfString:@"\"data\":false" withString:@"\"data\":true"] dataUsingEncoding:NSUTF8StringEncoding];
+            if (d) { out = d; tlog(@"shield_patched_http", nil); }
+        }
+    }
+    [s invalidateAndCancel];
+    if (e) { [self.client URLProtocol:self didFailWithError:e]; return; }
+    [self.client URLProtocol:self didLoadData:out];
+    [self.client URLProtocolDidFinishLoading:self];
+}
+@end
+
+static void injectShield(NSURLSessionConfiguration *c) {
+    if (!c || [c.protocolClasses containsObject:[AmapShieldProtocol class]]) return;
+    NSMutableArray *p = [[NSMutableArray alloc] initWithObjects:[AmapShieldProtocol class], nil];
+    if (c.protocolClasses) [p addObjectsFromArray:c.protocolClasses];
+    c.protocolClasses = p;
+}
+static id (*orig_newSess)(id, SEL, NSURLSessionConfiguration *, id, NSOperationQueue *);
+static id hook_newSess(id s, SEL c, NSURLSessionConfiguration *cfg, id d, NSOperationQueue *q) {
+    injectShield(cfg); return orig_newSess(s, c, cfg, d, q);
+}
+
 static void (*orig_deleteCookie)(id, SEL, id);
 static void hook_deleteCookie(id self, SEL _cmd, id cookie) {
     NSHTTPCookie *c = (NSHTTPCookie *)cookie;
@@ -238,6 +308,17 @@ void installBypassHooks(void) {
         @selector(deleteCookie:),
         (IMP)hook_deleteCookie,
         (IMP *)&orig_deleteCookie);
+    MSHookMessageEx(
+        object_getClass(NSClassFromString(@"NSJSONSerialization")),
+        @selector(JSONObjectWithData:options:error:),
+        (IMP)hook_JSONObjectWithData,
+        (IMP *)&orig_JSONObjectWithData);
+    [NSURLProtocol registerClass:[AmapShieldProtocol class]];
+    MSHookMessageEx(
+        object_getClass(NSClassFromString(@"NSURLSession")),
+        @selector(sessionWithConfiguration:delegate:delegateQueue:),
+        (IMP)hook_newSess,
+        (IMP *)&orig_newSess);
     installNetCaptureHooks();
     tlog(@"bypass_installed", nil);
 }

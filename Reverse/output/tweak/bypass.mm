@@ -186,6 +186,41 @@ static int hook_kill(pid_t pid, int sig) {
     return orig_kill(pid, sig);
 }
 
+// ── DTHbalSe 风控上报拦截（amapstream/upload + nest/log）──────────────────
+static BOOL isShieldRiskPath(NSString *p) {
+    if (!p) return NO;
+    return [p containsString:@"/shield/amapstream/upload"] ||
+           [p containsString:@"/shield/nest/updatable/v1/log"];
+}
+
+static id (*orig_dataTaskComp)(id, SEL, NSURLRequest *, void (^)(NSData *, NSURLResponse *, NSError *));
+static id hook_dataTaskComp(id self, SEL _cmd, NSURLRequest *req, void (^comp)(NSData *, NSURLResponse *, NSError *)) {
+    if (isShieldRiskPath(req.URL.path)) {
+        tlog(@"risk_blocked", @{@"p": req.URL.path ?: @""});
+        if (comp) {
+            NSData *d = [@"{\"code\":1,\"data\":false}" dataUsingEncoding:NSUTF8StringEncoding];
+            NSHTTPURLResponse *r = [[NSHTTPURLResponse alloc] initWithURL:req.URL statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:nil];
+            dispatch_async(dispatch_get_global_queue(0,0), ^{ comp(d, r, nil); });
+        }
+        return nil;
+    }
+    return orig_dataTaskComp(self, _cmd, req, comp);
+}
+
+static id (*orig_uploadTaskComp)(id, SEL, NSURLRequest *, NSData *, void (^)(NSData *, NSURLResponse *, NSError *));
+static id hook_uploadTaskComp(id self, SEL _cmd, NSURLRequest *req, NSData *body, void (^comp)(NSData *, NSURLResponse *, NSError *)) {
+    if (isShieldRiskPath(req.URL.path)) {
+        tlog(@"risk_blocked", @{@"p": req.URL.path ?: @""});
+        if (comp) {
+            NSData *d = [@"{\"code\":1,\"data\":false}" dataUsingEncoding:NSUTF8StringEncoding];
+            NSHTTPURLResponse *r = [[NSHTTPURLResponse alloc] initWithURL:req.URL statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:nil];
+            dispatch_async(dispatch_get_global_queue(0,0), ^{ comp(d, r, nil); });
+        }
+        return nil;
+    }
+    return orig_uploadTaskComp(self, _cmd, req, body, comp);
+}
+
 // ── Cookie 保护：阻止 DTHbalSe 批量清除 session（掉登录根因）─────────────
 static void (*orig_deleteCookie)(id, SEL, id);
 static void hook_deleteCookie(id self, SEL _cmd, id cookie) {
@@ -235,5 +270,15 @@ void installBypassHooks(void) {
         @selector(deleteCookie:),
         (IMP)hook_deleteCookie,
         (IMP *)&orig_deleteCookie);
+    MSHookMessageEx(
+        NSClassFromString(@"NSURLSession"),
+        @selector(dataTaskWithRequest:completionHandler:),
+        (IMP)hook_dataTaskComp,
+        (IMP *)&orig_dataTaskComp);
+    MSHookMessageEx(
+        NSClassFromString(@"NSURLSession"),
+        @selector(uploadTaskWithRequest:fromData:completionHandler:),
+        (IMP)hook_uploadTaskComp,
+        (IMP *)&orig_uploadTaskComp);
     tlog(@"bypass_installed", nil);
 }

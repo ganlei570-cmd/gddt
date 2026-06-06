@@ -51,7 +51,7 @@
 // ── 登录保护 —— 拦截 DTHbalSe 强制踢登录 ──────────────────────
 %hook GDAccountCoreService
 - (void)forceLogoutWithReason:(id)reason completeBlock:(id)block {
-    tlog(@"logout_blocked", @{@"m": @"forceLogout"});
+    tlog(@"logout_blocked", @{@"m": @"forceLogout", @"r": [NSString stringWithFormat:@"%@", reason ?: @"nil"]});
 }
 - (void)logout:(id)arg {
     tlog(@"logout_blocked", @{@"m": @"logout"});

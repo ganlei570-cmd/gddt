@@ -34,22 +34,36 @@ static NSData *tryGunzip(const uint8_t *p, size_t n) {
     return (ret == Z_STREAM_END) ? out : nil;
 }
 
+// HTTP/1.1 response with gzip body: decode headers (Latin-1) + gunzip body
+static NSString *tryHTTP1Decode(const uint8_t *buf, size_t len) {
+    NSString *lat = [[NSString alloc] initWithBytes:buf length:MIN(len,2048) encoding:NSISOLatin1StringEncoding];
+    if (!lat) return nil;
+    NSRange sep = [lat rangeOfString:@"\r\n\r\n"];
+    if (sep.location == NSNotFound) return nil;
+    size_t off = sep.location + 4;
+    NSData *gz = off < len ? tryGunzip(buf + off, len - off) : nil;
+    if (gz) {
+        NSString *body = [[NSString alloc] initWithData:gz encoding:NSUTF8StringEncoding];
+        if (body) return [lat stringByAppendingString:body];
+    }
+    return lat;
+}
+
 // HTTP/2 DATA frame: [3B len][1B type=0x00][1B flags][4B stream_id][payload]
+static NSString *tryH2Decode(const uint8_t *buf, size_t len) {
+    if (len < 10 || buf[3] != 0x00) return nil;
+    uint32_t plen = ((uint32_t)buf[0] << 16) | ((uint32_t)buf[1] << 8) | buf[2];
+    size_t off = 9 + ((buf[4] & 0x08) && len > 9 ? 1 : 0);
+    size_t pay = MIN(plen, len > off ? len - off : 0);
+    if (!pay) return nil;
+    NSData *gz = tryGunzip(buf + off, pay);
+    return gz ? [[NSString alloc] initWithData:gz encoding:NSUTF8StringEncoding]
+              : [[NSString alloc] initWithBytes:buf + off length:pay encoding:NSUTF8StringEncoding];
+}
+
 static NSString *decodeSSL(const uint8_t *buf, size_t len) {
     NSString *s = [[NSString alloc] initWithBytes:buf length:len encoding:NSUTF8StringEncoding];
-    if (s) return s;
-    if (len >= 10 && buf[3] == 0x00) {
-        uint32_t plen = ((uint32_t)buf[0] << 16) | ((uint32_t)buf[1] << 8) | buf[2];
-        size_t off = 9 + ((buf[4] & 0x08) && len > 9 ? 1 : 0);
-        size_t pay = MIN(plen, len > off ? len - off : 0);
-        if (pay > 0) {
-            NSData *gz = tryGunzip(buf + off, pay);
-            s = gz ? [[NSString alloc] initWithData:gz encoding:NSUTF8StringEncoding] : nil;
-            if (!s) s = [[NSString alloc] initWithBytes:buf + off length:pay encoding:NSUTF8StringEncoding];
-            if (!s) s = [[NSString alloc] initWithBytes:buf + off length:MIN(pay,512) encoding:NSISOLatin1StringEncoding];
-        }
-    }
-    return s;
+    return s ?: tryHTTP1Decode(buf, len) ?: tryH2Decode(buf, len);
 }
 
 static OSStatus (*orig_SSLRead)(SSLContextRef, void *, size_t, size_t *);
@@ -58,8 +72,12 @@ static OSStatus hook_SSLRead(SSLContextRef ctx, void *data, size_t dataLen, size
     if (r != 0 || !processed || *processed < 9) return r;
     @try {
         NSString *s = decodeSSL((const uint8_t *)data, *processed);
-        if (isRelevant(s))
-            tlog(@"ssl_resp", @{@"s": s.length > 600 ? [s substringToIndex:600] : s});
+        char host[128] = {0};
+        size_t hlen = sizeof(host);
+        SSLGetPeerDomainName(ctx, host, &hlen);
+        BOOL logAll = host[0] && strncmp(host, "passport", 8) == 0;
+        if (logAll || isRelevant(s))
+            tlog(@"ssl_resp", @{@"h": @(host), @"s": s ? (s.length > 600 ? [s substringToIndex:600] : s) : @"[nil]"});
     } @catch(id e) {}
     return r;
 }

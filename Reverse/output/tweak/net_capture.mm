@@ -5,7 +5,6 @@
 #import <substrate.h>
 #import "tlog.h"
 #import "net_capture.h"
-#include <zlib.h>
 
 static BOOL isRelevant(NSString *s) {
     if (!s) return NO;
@@ -14,67 +13,17 @@ static BOOL isRelevant(NSString *s) {
            [s containsString:@"shield"]|| [s containsString:@"passport"] ||
            [s containsString:@"Params error"] || [s containsString:@"\"result\":false"] ||
            [s containsString:@"verifycode"] || [s containsString:@"register"] ||
-           [s containsString:@"风险"]  || [s containsString:@"异常"] ||
-           [s containsString:@"gsid:"];  // HTTP/1.1 gzip 响应头（含 passport 等接口）
-}
-
-static NSData *tryGunzip(const uint8_t *p, size_t n) {
-    z_stream z = {0};
-    z.next_in = (Bytef *)p; z.avail_in = (uInt)n;
-    if (inflateInit2(&z, 16 + MAX_WBITS) != Z_OK) return nil;
-    NSMutableData *out = [NSMutableData dataWithCapacity:n * 3];
-    uint8_t tmp[4096];
-    int ret;
-    do {
-        z.next_out = tmp; z.avail_out = sizeof(tmp);
-        ret = inflate(&z, Z_NO_FLUSH);
-        if (ret == Z_STREAM_ERROR || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) break;
-        [out appendBytes:tmp length:sizeof(tmp) - z.avail_out];
-    } while (ret != Z_STREAM_END);
-    inflateEnd(&z);
-    return (ret == Z_STREAM_END) ? out : nil;
-}
-
-// HTTP/1.1 response with gzip body: decode headers (Latin-1) + gunzip body
-static NSString *tryHTTP1Decode(const uint8_t *buf, size_t len) {
-    NSString *lat = [[NSString alloc] initWithBytes:buf length:MIN(len,2048) encoding:NSISOLatin1StringEncoding];
-    if (!lat) return nil;
-    NSRange sep = [lat rangeOfString:@"\r\n\r\n"];
-    if (sep.location == NSNotFound) return nil;
-    size_t off = sep.location + 4;
-    NSData *gz = off < len ? tryGunzip(buf + off, len - off) : nil;
-    if (gz) {
-        NSString *body = [[NSString alloc] initWithData:gz encoding:NSUTF8StringEncoding];
-        if (body) return [lat stringByAppendingString:body];
-    }
-    return lat;
-}
-
-// HTTP/2 DATA frame: [3B len][1B type=0x00][1B flags][4B stream_id][payload]
-static NSString *tryH2Decode(const uint8_t *buf, size_t len) {
-    if (len < 10 || buf[3] != 0x00) return nil;
-    uint32_t plen = ((uint32_t)buf[0] << 16) | ((uint32_t)buf[1] << 8) | buf[2];
-    size_t off = 9 + ((buf[4] & 0x08) && len > 9 ? 1 : 0);
-    size_t pay = MIN(plen, len > off ? len - off : 0);
-    if (!pay) return nil;
-    NSData *gz = tryGunzip(buf + off, pay);
-    return gz ? [[NSString alloc] initWithData:gz encoding:NSUTF8StringEncoding]
-              : [[NSString alloc] initWithBytes:buf + off length:pay encoding:NSUTF8StringEncoding];
-}
-
-static NSString *decodeSSL(const uint8_t *buf, size_t len) {
-    NSString *s = [[NSString alloc] initWithBytes:buf length:len encoding:NSUTF8StringEncoding];
-    return s ?: tryHTTP1Decode(buf, len) ?: tryH2Decode(buf, len);
+           [s containsString:@"风险"]  || [s containsString:@"异常"];
 }
 
 static OSStatus (*orig_SSLRead)(SSLContextRef, void *, size_t, size_t *);
 static OSStatus hook_SSLRead(SSLContextRef ctx, void *data, size_t dataLen, size_t *processed) {
     OSStatus r = orig_SSLRead(ctx, data, dataLen, processed);
-    if (r != 0 || !processed || *processed < 9) return r;
+    if (r != 0 || !processed || *processed < 20) return r;
     @try {
-        NSString *s = decodeSSL((const uint8_t *)data, *processed);
+        NSString *s = [[NSString alloc] initWithBytes:data length:*processed encoding:NSUTF8StringEncoding];
         if (isRelevant(s))
-            tlog(@"ssl_resp", @{@"s": s.length > 600 ? [s substringToIndex:600] : s});
+            tlog(@"ssl_resp", @{@"s": s.length > 500 ? [s substringToIndex:500] : s});
     } @catch(id e) {}
     return r;
 }

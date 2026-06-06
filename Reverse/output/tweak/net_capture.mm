@@ -5,6 +5,7 @@
 #import <substrate.h>
 #import "tlog.h"
 #import "net_capture.h"
+#include <zlib.h>
 
 static BOOL isRelevant(NSString *s) {
     if (!s) return NO;
@@ -16,14 +17,49 @@ static BOOL isRelevant(NSString *s) {
            [s containsString:@"风险"]  || [s containsString:@"异常"];
 }
 
+static NSData *tryGunzip(const uint8_t *p, size_t n) {
+    z_stream z = {0};
+    z.next_in = (Bytef *)p; z.avail_in = (uInt)n;
+    if (inflateInit2(&z, 16 + MAX_WBITS) != Z_OK) return nil;
+    NSMutableData *out = [NSMutableData dataWithCapacity:n * 3];
+    uint8_t tmp[4096];
+    int ret;
+    do {
+        z.next_out = tmp; z.avail_out = sizeof(tmp);
+        ret = inflate(&z, Z_NO_FLUSH);
+        if (ret == Z_STREAM_ERROR || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) break;
+        [out appendBytes:tmp length:sizeof(tmp) - z.avail_out];
+    } while (ret != Z_STREAM_END);
+    inflateEnd(&z);
+    return (ret == Z_STREAM_END) ? out : nil;
+}
+
+// HTTP/2 DATA frame: [3B len][1B type=0x00][1B flags][4B stream_id][payload]
+static NSString *decodeSSL(const uint8_t *buf, size_t len) {
+    NSString *s = [[NSString alloc] initWithBytes:buf length:len encoding:NSUTF8StringEncoding];
+    if (s) return s;
+    if (len >= 10 && buf[3] == 0x00) {
+        uint32_t plen = ((uint32_t)buf[0] << 16) | ((uint32_t)buf[1] << 8) | buf[2];
+        size_t off = 9 + ((buf[4] & 0x08) && len > 9 ? 1 : 0);
+        size_t pay = MIN(plen, len > off ? len - off : 0);
+        if (pay > 0) {
+            NSData *gz = tryGunzip(buf + off, pay);
+            s = gz ? [[NSString alloc] initWithData:gz encoding:NSUTF8StringEncoding] : nil;
+            if (!s) s = [[NSString alloc] initWithBytes:buf + off length:pay encoding:NSUTF8StringEncoding];
+            if (!s) s = [[NSString alloc] initWithBytes:buf + off length:MIN(pay,512) encoding:NSISOLatin1StringEncoding];
+        }
+    }
+    return s;
+}
+
 static OSStatus (*orig_SSLRead)(SSLContextRef, void *, size_t, size_t *);
 static OSStatus hook_SSLRead(SSLContextRef ctx, void *data, size_t dataLen, size_t *processed) {
     OSStatus r = orig_SSLRead(ctx, data, dataLen, processed);
-    if (r != 0 || !processed || *processed < 20) return r;
+    if (r != 0 || !processed || *processed < 9) return r;
     @try {
-        NSString *s = [[NSString alloc] initWithBytes:data length:*processed encoding:NSUTF8StringEncoding];
+        NSString *s = decodeSSL((const uint8_t *)data, *processed);
         if (isRelevant(s))
-            tlog(@"ssl_resp", @{@"s": s.length > 500 ? [s substringToIndex:500] : s});
+            tlog(@"ssl_resp", @{@"s": s.length > 600 ? [s substringToIndex:600] : s});
     } @catch(id e) {}
     return r;
 }

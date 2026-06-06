@@ -13,6 +13,7 @@
 #import "profile.h"
 
 static const char * const kJailPaths[] = {
+    "/var/jb", "/private/var/jb",
     "/Applications/Cydia.app", "/Applications/Sileo.app", "/Applications/Zebra.app",
     "/Library/MobileSubstrate", "/usr/sbin/sshd", "/usr/bin/ssh",
     "/etc/apt", "/private/var/lib/apt", "/private/var/stash",

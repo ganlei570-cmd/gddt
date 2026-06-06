@@ -188,6 +188,21 @@ static int hook_kill(pid_t pid, int sig) {
 }
 
 
+// ── DTHbalSe 风控 JSON 拦截：解析层改 data:false → data:true（无时机问题）──────────────
+static id (*orig_JSONObject)(Class, SEL, NSData *, NSJSONReadingOptions, NSError **);
+static id hook_JSONObject(Class cls, SEL cmd, NSData *data, NSJSONReadingOptions opts, NSError **err) {
+    id result = orig_JSONObject(cls, cmd, data, opts, err);
+    if (![result isKindOfClass:[NSDictionary class]]) return result;
+    NSDictionary *d = result;
+    if (d[@"gsId"] && [d[@"result"] isEqual:@YES] && [d[@"data"] isEqual:@NO]) {
+        NSMutableDictionary *m = [d mutableCopy];
+        m[@"data"] = @YES;
+        tlog(@"shield_patched", nil);
+        return m;
+    }
+    return result;
+}
+
 // ── DTHbalSe 风控上报拦截：透传 amapstream/upload，把响应 "data":false → "data":true ────
 @interface AmapShieldProtocol : NSURLProtocol <NSURLSessionDataDelegate>
 @property NSMutableData *buf;
@@ -292,6 +307,11 @@ void installBypassHooks(void) {
         @selector(deleteCookie:),
         (IMP)hook_deleteCookie,
         (IMP *)&orig_deleteCookie);
+    MSHookMessageEx(
+        object_getClass(NSClassFromString(@"NSJSONSerialization")),
+        @selector(JSONObjectWithData:options:error:),
+        (IMP)hook_JSONObject,
+        (IMP *)&orig_JSONObject);
     [NSURLProtocol registerClass:[AmapShieldProtocol class]];
     MSHookMessageEx(
         object_getClass(NSClassFromString(@"NSURLSession")),

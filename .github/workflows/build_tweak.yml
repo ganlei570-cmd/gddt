@@ -38,6 +38,25 @@ jobs:
           path: Reverse/output/tweak/packages/*.deb
           if-no-files-found: error
 
+      - name: Commit deb + IPA to dist/
+        run: |
+          LAST=$(ls dist/tweak_v*.deb 2>/dev/null | grep -oP 'v\K[0-9]+' | sort -n | tail -1)
+          NEXT=$((${LAST:-0} + 1))
+          DEB=$(find Reverse/output/tweak/packages -name "*.deb" | head -1)
+          cp "$DEB" "dist/tweak_v${NEXT}.deb"
+          LAST_IPA=$(ls dist/YiJianXinJi_v*.ipa 2>/dev/null | grep -oP 'v\K[0-9]+' | sort -n | tail -1)
+          if [ -n "$LAST_IPA" ] && [ "$LAST_IPA" != "$NEXT" ]; then
+            cp "dist/YiJianXinJi_v${LAST_IPA}.ipa" "dist/YiJianXinJi_v${NEXT}.ipa"
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dist/tweak_v${NEXT}.deb
+          [ -f "dist/YiJianXinJi_v${NEXT}.ipa" ] && git add "dist/YiJianXinJi_v${NEXT}.ipa"
+          git commit -m "build: v${NEXT} arm64+arm64e [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-ipa:
     runs-on: macos-13
     steps:

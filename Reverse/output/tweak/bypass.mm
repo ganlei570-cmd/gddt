@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <unistd.h>
 #import <substrate.h>
+#import <objc/runtime.h>
 #import "bypass.h"
 #import "profile.h"
 
@@ -187,38 +188,41 @@ static int hook_kill(pid_t pid, int sig) {
 }
 
 // ── DTHbalSe 风控上报拦截（amapstream/upload + nest/log）──────────────────
+// NSURLProtocol 方案：在 URL loading system 层拦截，覆盖 delegate-based session
 static BOOL isShieldRiskPath(NSString *p) {
     if (!p) return NO;
     return [p containsString:@"/shield/amapstream/upload"] ||
            [p containsString:@"/shield/nest/updatable/v1/log"];
 }
 
-static id (*orig_dataTaskComp)(id, SEL, NSURLRequest *, void (^)(NSData *, NSURLResponse *, NSError *));
-static id hook_dataTaskComp(id self, SEL _cmd, NSURLRequest *req, void (^comp)(NSData *, NSURLResponse *, NSError *)) {
-    if (isShieldRiskPath(req.URL.path)) {
-        tlog(@"risk_blocked", @{@"p": req.URL.path ?: @""});
-        if (comp) {
-            NSData *d = [@"{\"code\":1,\"data\":false}" dataUsingEncoding:NSUTF8StringEncoding];
-            NSHTTPURLResponse *r = [[NSHTTPURLResponse alloc] initWithURL:req.URL statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:nil];
-            dispatch_async(dispatch_get_global_queue(0,0), ^{ comp(d, r, nil); });
-        }
-        return nil;
-    }
-    return orig_dataTaskComp(self, _cmd, req, comp);
+@interface AmapShieldProtocol : NSURLProtocol @end
+@implementation AmapShieldProtocol
++ (BOOL)canInitWithRequest:(NSURLRequest *)req {
+    return isShieldRiskPath(req.URL.path);
 }
++ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)req { return req; }
+- (void)startLoading {
+    NSData *d = [@"{\"data\":true}" dataUsingEncoding:NSUTF8StringEncoding];
+    NSHTTPURLResponse *r = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
+        statusCode:200 HTTPVersion:@"HTTP/1.1"
+        headerFields:@{@"Content-Type": @"application/json"}];
+    [self.client URLProtocol:self didReceiveResponse:r cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    [self.client URLProtocol:self didLoadData:d];
+    [self.client URLProtocolDidFinishLoading:self];
+    tlog(@"risk_blocked", @{@"p": self.request.URL.path ?: @""});
+}
+- (void)stopLoading {}
+@end
 
-static id (*orig_uploadTaskComp)(id, SEL, NSURLRequest *, NSData *, void (^)(NSData *, NSURLResponse *, NSError *));
-static id hook_uploadTaskComp(id self, SEL _cmd, NSURLRequest *req, NSData *body, void (^comp)(NSData *, NSURLResponse *, NSError *)) {
-    if (isShieldRiskPath(req.URL.path)) {
-        tlog(@"risk_blocked", @{@"p": req.URL.path ?: @""});
-        if (comp) {
-            NSData *d = [@"{\"code\":1,\"data\":false}" dataUsingEncoding:NSUTF8StringEncoding];
-            NSHTTPURLResponse *r = [[NSHTTPURLResponse alloc] initWithURL:req.URL statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:nil];
-            dispatch_async(dispatch_get_global_queue(0,0), ^{ comp(d, r, nil); });
-        }
-        return nil;
+static NSURLSession *(*orig_sessionCreate)(id, SEL, NSURLSessionConfiguration *, id, NSOperationQueue *);
+static NSURLSession *hook_sessionCreate(id cls, SEL _cmd, NSURLSessionConfiguration *cfg, id delegate, NSOperationQueue *q) {
+    if (cfg) {
+        NSMutableArray *p = [NSMutableArray arrayWithArray:cfg.protocolClasses ?: @[]];
+        if (![p containsObject:[AmapShieldProtocol class]])
+            [p insertObject:[AmapShieldProtocol class] atIndex:0];
+        cfg.protocolClasses = p;
     }
-    return orig_uploadTaskComp(self, _cmd, req, body, comp);
+    return orig_sessionCreate(cls, _cmd, cfg, delegate, q);
 }
 
 // ── Cookie 保护：阻止 DTHbalSe 批量清除 session（掉登录根因）─────────────
@@ -270,15 +274,11 @@ void installBypassHooks(void) {
         @selector(deleteCookie:),
         (IMP)hook_deleteCookie,
         (IMP *)&orig_deleteCookie);
+    [NSURLProtocol registerClass:[AmapShieldProtocol class]];
     MSHookMessageEx(
-        NSClassFromString(@"NSURLSession"),
-        @selector(dataTaskWithRequest:completionHandler:),
-        (IMP)hook_dataTaskComp,
-        (IMP *)&orig_dataTaskComp);
-    MSHookMessageEx(
-        NSClassFromString(@"NSURLSession"),
-        @selector(uploadTaskWithRequest:fromData:completionHandler:),
-        (IMP)hook_uploadTaskComp,
-        (IMP *)&orig_uploadTaskComp);
+        object_getClass(NSClassFromString(@"NSURLSession")),
+        @selector(sessionWithConfiguration:delegate:delegateQueue:),
+        (IMP)hook_sessionCreate,
+        (IMP *)&orig_sessionCreate);
     tlog(@"bypass_installed", nil);
 }

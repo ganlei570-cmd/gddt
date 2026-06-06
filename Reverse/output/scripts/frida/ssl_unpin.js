@@ -29,19 +29,7 @@ if (SecTrustEvaluateWithError) {
 }
 
 // ══════════════════════════════════════════════════
-// 2. NSURLSession didReceiveChallenge delegate bypass
-// ══════════════════════════════════════════════════
-
-try {
-    var NSURLSessionClass = ObjC.classes.NSURLSession;
-    if (NSURLSessionClass) {
-        // Hook completionHandler 调用，强制 NSURLSessionAuthChallengeUseCredential
-        // 实际在 CFNetwork 层拦截更可靠，此处做 ObjC delegate 层保险
-    }
-} catch(e) {}
-
-// ══════════════════════════════════════════════════
-// 3. CFNetwork: SSLHandshake / tls_helper_create_peer_trust
+// 2. CFNetwork: SSLHandshake
 // ══════════════════════════════════════════════════
 
 var SSLHandshake = Module.findExportByName('Security', 'SSLHandshake');
@@ -51,50 +39,6 @@ if (SSLHandshake) {
             retval.replace(ptr(0)); // noErr
         }
     });
-}
-
-// ══════════════════════════════════════════════════
-// 4. 绕过 App 内置证书 Pinning
-//    hook -[NSURLSession URLSession:didReceiveChallenge:completionHandler:]
-// ══════════════════════════════════════════════════
-
-if (ObjC.available) {
-    try {
-        var NSURLCredential = ObjC.classes.NSURLCredential;
-        var challengeSel = ObjC.selector('URLSession:didReceiveChallenge:completionHandler:');
-
-        // 枚举所有实现了该 delegate 方法的类
-        ObjC.enumerateLoadedClasses({
-            onMatch: function(name, handle) {
-                try {
-                    var cls = ObjC.classes[name];
-                    if (!cls) return;
-                    if (!cls['- URLSession:didReceiveChallenge:completionHandler:']) return;
-                    var impl = cls['- URLSession:didReceiveChallenge:completionHandler:'].implementation;
-                    Interceptor.attach(impl, {
-                        onEnter: function(args) {
-                            try {
-                                var challenge    = new ObjC.Object(args[3]);
-                                var protSpace    = challenge.protectionSpace();
-                                var authMethod   = protSpace.authenticationMethod().toString();
-                                if (authMethod.indexOf('ServerTrust') < 0) return;
-                                var trust        = protSpace.serverTrust();
-                                var credential   = NSURLCredential.credentialForTrust_(trust);
-                                var completionHandler = new ObjC.Block(args[4]);
-                                // NSURLSessionAuthChallengeUseCredential = 0
-                                completionHandler.implementation(0, credential.handle);
-                                this.handled = true;
-                            } catch(e) {}
-                        }
-                    });
-                } catch(e) {}
-            },
-            onComplete: function() {}
-        });
-        console.log('[ssl_unpin] NSURLSession challenge delegate hooks installed');
-    } catch(e) {
-        console.log('[ssl_unpin] challenge hook skipped: ' + e);
-    }
 }
 
 // ══════════════════════════════════════════════════

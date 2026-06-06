@@ -12,8 +12,8 @@ static BOOL isRelevant(NSString *s) {
            [s containsString:@"risk"]  || [s containsString:@"\"data\":false"] ||
            [s containsString:@"shield"]|| [s containsString:@"passport"] ||
            [s containsString:@"Params error"] || [s containsString:@"\"result\":false"] ||
-           [s containsString:@"onekey"]|| [s containsString:@"verifycode"] ||
-           [s containsString:@"register"];
+           [s containsString:@"verifycode"] || [s containsString:@"register"] ||
+           [s containsString:@"风险"]  || [s containsString:@"异常"];
 }
 
 static OSStatus (*orig_SSLRead)(SSLContextRef, void *, size_t, size_t *);

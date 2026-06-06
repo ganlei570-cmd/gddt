@@ -40,11 +40,11 @@ jobs:
 
       - name: Commit deb + IPA to dist/
         run: |
-          LAST=$(ls dist/tweak_v*.deb 2>/dev/null | grep -oP 'v\K[0-9]+' | sort -n | tail -1)
+          LAST=$(ls dist/tweak_v*.deb 2>/dev/null | sed 's/.*tweak_v\([0-9]*\)\.deb/\1/' | sort -n | tail -1)
           NEXT=$((${LAST:-0} + 1))
           DEB=$(find Reverse/output/tweak/packages -name "*.deb" | head -1)
           cp "$DEB" "dist/tweak_v${NEXT}.deb"
-          LAST_IPA=$(ls dist/YiJianXinJi_v*.ipa 2>/dev/null | grep -oP 'v\K[0-9]+' | sort -n | tail -1)
+          LAST_IPA=$(ls dist/YiJianXinJi_v*.ipa 2>/dev/null | sed 's/.*YiJianXinJi_v\([0-9]*\)\.ipa/\1/' | sort -n | tail -1)
           if [ -n "$LAST_IPA" ] && [ "$LAST_IPA" != "$NEXT" ]; then
             cp "dist/YiJianXinJi_v${LAST_IPA}.ipa" "dist/YiJianXinJi_v${NEXT}.ipa"
           fi

@@ -98,7 +98,6 @@
             installBypassHooks();
             installSpoofHooks();
             initCleanHooks();
-            installNetCaptureHooks();
             %init;
             dlopen("/System/Library/Frameworks/AdSupport.framework/AdSupport", RTLD_NOW);
             %init(GAdSupport);

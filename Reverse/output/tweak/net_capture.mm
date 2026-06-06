@@ -14,7 +14,8 @@ static BOOL isRelevant(NSString *s) {
            [s containsString:@"shield"]|| [s containsString:@"passport"] ||
            [s containsString:@"Params error"] || [s containsString:@"\"result\":false"] ||
            [s containsString:@"verifycode"] || [s containsString:@"register"] ||
-           [s containsString:@"风险"]  || [s containsString:@"异常"];
+           [s containsString:@"风险"]  || [s containsString:@"异常"] ||
+           [s containsString:@"gsid:"];  // HTTP/1.1 gzip 响应头（含 passport 等接口）
 }
 
 static NSData *tryGunzip(const uint8_t *p, size_t n) {
@@ -72,12 +73,8 @@ static OSStatus hook_SSLRead(SSLContextRef ctx, void *data, size_t dataLen, size
     if (r != 0 || !processed || *processed < 9) return r;
     @try {
         NSString *s = decodeSSL((const uint8_t *)data, *processed);
-        char host[128] = {0};
-        size_t hlen = sizeof(host);
-        SSLGetPeerDomainName(ctx, host, &hlen);
-        BOOL logAll = host[0] && strncmp(host, "passport", 8) == 0;
-        if (logAll || isRelevant(s))
-            tlog(@"ssl_resp", @{@"h": @(host), @"s": s ? (s.length > 600 ? [s substringToIndex:600] : s) : @"[nil]"});
+        if (isRelevant(s))
+            tlog(@"ssl_resp", @{@"s": s.length > 600 ? [s substringToIndex:600] : s});
     } @catch(id e) {}
     return r;
 }

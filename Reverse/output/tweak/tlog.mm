@@ -1,11 +1,20 @@
 #import "tlog.h"
 #import <UIKit/UIKit.h>
 
-#define TLOG_URL      @"http://49.234.20.227:8888/log"
-#define TLOG_LOGFILE  @"/tmp/amaptweak_diag.log"
+#define TLOG_URL  @"http://49.234.20.227:8888/log"
+
+static NSString *tlogFilePath(void) {
+    static NSString *p;
+    static dispatch_once_t t;
+    dispatch_once(&t, ^{
+        p = [NSTemporaryDirectory() stringByAppendingPathComponent:@"amaptweak_diag.log"];
+    });
+    return p;
+}
 
 // 同步写本地文件，保证崩溃前已落盘
 static void tlog_local(NSString *event, NSDictionary *info) {
+    NSString *logPath = tlogFilePath();
     NSTimeInterval ts = [[NSDate date] timeIntervalSince1970];
     NSMutableString *line = [NSMutableString stringWithFormat:@"[%.3f] %@", ts, event];
     if (info.count) {
@@ -13,10 +22,10 @@ static void tlog_local(NSString *event, NSDictionary *info) {
             [line appendFormat:@" %@=%@", k, info[k]];
     }
     [line appendString:@"\n"];
-    NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:TLOG_LOGFILE];
+    NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:logPath];
     if (!fh) {
-        [@"" writeToFile:TLOG_LOGFILE atomically:NO encoding:NSUTF8StringEncoding error:nil];
-        fh = [NSFileHandle fileHandleForWritingAtPath:TLOG_LOGFILE];
+        [@"" writeToFile:logPath atomically:NO encoding:NSUTF8StringEncoding error:nil];
+        fh = [NSFileHandle fileHandleForWritingAtPath:logPath];
     }
     if (fh) {
         [fh seekToEndOfFile];

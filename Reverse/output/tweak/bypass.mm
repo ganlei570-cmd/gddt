@@ -196,6 +196,16 @@ static id hook_JSONObjectWithData(id self, SEL cmd, NSData *data, NSJSONReadingO
     id result = orig_JSONObjectWithData(self, cmd, data, opts, err);
     if (![result isKindOfClass:[NSDictionary class]]) return result;
     NSDictionary *d = (NSDictionary *)result;
+    // 捕获非零错误码响应（passport/风控 响应必经此处）
+    id errCode = d[@"errno"] ?: d[@"code"] ?: d[@"retcode"] ?: d[@"status"];
+    id msg     = d[@"message"] ?: d[@"msg"] ?: d[@"errstring"] ?: d[@"error"];
+    if (errCode && ![errCode isEqual:@(0)] && ![errCode isEqual:@"0"] && msg) {
+        NSString *raw = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        tlog(@"json_err", @{@"code": [NSString stringWithFormat:@"%@", errCode],
+                             @"msg":  [NSString stringWithFormat:@"%@", msg],
+                             @"raw":  raw ? (raw.length > 500 ? [raw substringToIndex:500] : raw) : @""});
+    }
+    // ALBB shield patch
     if (d[@"gsId"] && [d[@"result"] boolValue] && [d[@"data"] isEqual:@NO]) {
         NSMutableDictionary *p = [d mutableCopy];
         p[@"data"] = @YES;
@@ -219,6 +229,12 @@ static id hook_JSONObjectWithData(id self, SEL cmd, NSData *data, NSJSONReadingO
 }
 + (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)r { return r; }
 - (void)startLoading {
+    NSData *reqBody = self.request.HTTPBody;
+    if (reqBody.length > 0) {
+        NSString *s = [[NSString alloc] initWithData:reqBody encoding:NSUTF8StringEncoding];
+        tlog(@"shield_req", @{@"path": self.request.URL.path ?: @"",
+                               @"s": s ? (s.length > 400 ? [s substringToIndex:400] : s) : @"[binary]"});
+    }
     NSMutableURLRequest *mr = [self.request mutableCopy];
     [NSURLProtocol setProperty:@1 forKey:@"_asp" inRequest:mr];
     NSURLSessionConfiguration *c = [NSURLSessionConfiguration ephemeralSessionConfiguration];

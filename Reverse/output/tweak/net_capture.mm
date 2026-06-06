@@ -25,6 +25,19 @@ static OSStatus hook_SSLRead(SSLContextRef ctx, void *data, size_t dataLen, size
     return r;
 }
 
+static OSStatus (*orig_SSLWrite)(SSLContextRef, const void *, size_t, size_t *);
+static OSStatus hook_SSLWrite(SSLContextRef ctx, const void *data, size_t dataLen, size_t *processed) {
+    @try {
+        if (dataLen > 10) {
+            NSString *s = [[NSString alloc] initWithBytes:data length:MIN(dataLen, 300) encoding:NSUTF8StringEncoding];
+            if (s && ([s containsString:@"shield"] || [s containsString:@"passport"] ||
+                      [s containsString:@"adiu"] || [s containsString:@"amap.com"]))
+                tlog(@"ssl_req", @{@"s": s.length > 300 ? [s substringToIndex:300] : s});
+        }
+    } @catch(id e) {}
+    return orig_SSLWrite(ctx, data, dataLen, processed);
+}
+
 @interface AmapNetSpy : NSObject
 @property (nonatomic, strong) id real;
 @end
@@ -83,8 +96,10 @@ static id hook_newSess(id s, SEL c, NSURLSessionConfiguration *cfg, id d, NSOper
 }
 
 void installNetCaptureHooks(void) {
-    void *fn = dlsym(RTLD_DEFAULT, "SSLRead");
-    if (fn) MSHookFunction(fn, (void *)hook_SSLRead, (void **)&orig_SSLRead);
+    void *fnr = dlsym(RTLD_DEFAULT, "SSLRead");
+    if (fnr) MSHookFunction(fnr, (void *)hook_SSLRead, (void **)&orig_SSLRead);
+    void *fnw = dlsym(RTLD_DEFAULT, "SSLWrite");
+    if (fnw) MSHookFunction(fnw, (void *)hook_SSLWrite, (void **)&orig_SSLWrite);
     MSHookMessageEx(
         object_getClass(NSClassFromString(@"NSURLSession")),
         @selector(sessionWithConfiguration:delegate:delegateQueue:),

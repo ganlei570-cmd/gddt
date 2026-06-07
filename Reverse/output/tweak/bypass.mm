@@ -205,11 +205,14 @@ static CFTypeRef hook_MGCopyAnswer(CFStringRef key) {
     if (![k isEqualToString:@"AoKnINTLPoKML3ctoP0AZg"] && ![k isEqualToString:@"j9Th5smJpdztHwc+i39zIg"])
         return orig_MGCopyAnswer(key);
     CFTypeRef orig = orig_MGCopyAnswer(key);
+    if (!orig) return orig;
+    BOOL isStr  = CFGetTypeID(orig) == CFStringGetTypeID();
+    BOOL isData = CFGetTypeID(orig) == CFDataGetTypeID();
+    if (!isStr && !isData) return orig;
     uint8_t d[CC_SHA256_DIGEST_LENGTH];
     const char *cs = [[gIDFV stringByAppendingString:k] UTF8String];
     CC_SHA256(cs, (CC_LONG)strlen(cs), d);
-    BOOL isStr = orig && CFGetTypeID(orig) == CFStringGetTypeID();
-    if (orig) CFRelease(orig);
+    CFRelease(orig);
     tlog(@"mg_spoofed", @{@"k": k});
     if (isStr) {
         NSMutableString *h = [NSMutableString stringWithCapacity:32];

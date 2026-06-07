@@ -13,6 +13,7 @@
 #import "bypass.h"
 #import "profile.h"
 #import "net_capture.h"
+#import <CommonCrypto/CommonDigest.h>
 
 static const char * const kJailPaths[] = {
     "/var/jb", "/private/var/jb",
@@ -196,6 +197,28 @@ static int hook_kill(pid_t pid, int sig) {
 }
 
 
+// ── MGCopyAnswer — ALBB 硬件指纹混淆 key 拦截，使每次新机产生不同 Ap-Tid ───
+static CFTypeRef (*orig_MGCopyAnswer)(CFStringRef);
+static CFTypeRef hook_MGCopyAnswer(CFStringRef key) {
+    if (!key || !gIDFV) return orig_MGCopyAnswer(key);
+    NSString *k = (__bridge NSString *)key;
+    if (![k isEqualToString:@"AoKnINTLPoKML3ctoP0AZg"] && ![k isEqualToString:@"j9Th5smJpdztHwc+i39zIg"])
+        return orig_MGCopyAnswer(key);
+    CFTypeRef orig = orig_MGCopyAnswer(key);
+    uint8_t d[CC_MD5_DIGEST_LENGTH];
+    const char *cs = [[gIDFV stringByAppendingString:k] UTF8String];
+    CC_MD5(cs, (CC_LONG)strlen(cs), d);
+    BOOL isStr = orig && CFGetTypeID(orig) == CFStringGetTypeID();
+    if (orig) CFRelease(orig);
+    tlog(@"mg_spoofed", @{@"k": k});
+    if (isStr) {
+        NSMutableString *h = [NSMutableString stringWithCapacity:32];
+        for (int i = 0; i < 16; i++) [h appendFormat:@"%02x", d[i]];
+        return CFBridgingRetain([h copy]);
+    }
+    return CFBridgingRetain([NSData dataWithBytes:d length:16]);
+}
+
 // ── Cookie 保护：阻止 DTHbalSe 批量清除 session（掉登录根因）─────────────
 // ── DTHbalSe shield 响应拦截：data:false → data:true ──────────────
 static id (*orig_JSONObjectWithData)(id, SEL, NSData *, NSJSONReadingOptions, NSError **);
@@ -326,6 +349,7 @@ void installBypassHooks(void) {
     hookEnvDetect();
     dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW);
     MH("IORegistryEntryCreateCFProperty", hook_IORegCreateCFProp, &orig_IORegCreateCFProp);
+    MH("MGCopyAnswer", hook_MGCopyAnswer, &orig_MGCopyAnswer);
     MSHookMessageEx(
         NSClassFromString(@"NSHTTPCookieStorage"),
         @selector(deleteCookie:),

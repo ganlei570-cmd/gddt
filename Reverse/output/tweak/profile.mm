@@ -146,6 +146,13 @@ void loadProfile(void) {
         // 清空持久化 allowed 列表，防止旧 session 状态跨 reset 保留
         NSString *allowedPath = [amapProfileDir() stringByAppendingPathComponent:@"kc_allowed.json"];
         [fm removeItemAtPath:allowedPath error:nil];
+        for (NSString *rel in @[@"Library/Preferences/onesdk-0-0.plist", @"Library/Preferences/onesdk-0-3.plist"]) {
+            NSString *full = [NSHomeDirectory() stringByAppendingPathComponent:rel];
+            if ([fm fileExistsAtPath:full]) {
+                [fm removeItemAtPath:full error:nil];
+                tlog(@"onesdk_plist_deleted", @{@"path": rel});
+            }
+        }
         tlog(@"utdid_reset_done", nil);
     }
     gKeychainClearSet = defaultKCSet();

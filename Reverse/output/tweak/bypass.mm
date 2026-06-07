@@ -205,9 +205,9 @@ static CFTypeRef hook_MGCopyAnswer(CFStringRef key) {
     if (![k isEqualToString:@"AoKnINTLPoKML3ctoP0AZg"] && ![k isEqualToString:@"j9Th5smJpdztHwc+i39zIg"])
         return orig_MGCopyAnswer(key);
     CFTypeRef orig = orig_MGCopyAnswer(key);
-    uint8_t d[CC_MD5_DIGEST_LENGTH];
+    uint8_t d[CC_SHA256_DIGEST_LENGTH];
     const char *cs = [[gIDFV stringByAppendingString:k] UTF8String];
-    CC_MD5(cs, (CC_LONG)strlen(cs), d);
+    CC_SHA256(cs, (CC_LONG)strlen(cs), d);
     BOOL isStr = orig && CFGetTypeID(orig) == CFStringGetTypeID();
     if (orig) CFRelease(orig);
     tlog(@"mg_spoofed", @{@"k": k});

@@ -145,9 +145,16 @@ static int hook_sysctlbyname(const char *n, void *o, size_t *sz, void *ne, size_
 
 static CFTypeRef (*orig_IORegCreateCFProp)(mach_port_t, CFStringRef, CFAllocatorRef, uint32_t);
 static CFTypeRef hook_IORegCreateCFProp(mach_port_t entry, CFStringRef key, CFAllocatorRef alloc, uint32_t opts) {
-    if (gHardwareUUID && key && CFStringCompare(key, CFSTR("IOPlatformUUID"), 0) == kCFCompareEqualTo)
+    if (!key) return orig_IORegCreateCFProp(entry, key, alloc, opts);
+    if (gHardwareUUID && CFStringCompare(key, CFSTR("IOPlatformUUID"), 0) == kCFCompareEqualTo)
         return CFStringCreateCopy(alloc ?: kCFAllocatorDefault, (__bridge CFStringRef)gHardwareUUID);
-    return orig_IORegCreateCFProp(entry, key, alloc, opts);
+    if (gSerialNumber && CFStringCompare(key, CFSTR("IOPlatformSerialNumber"), 0) == kCFCompareEqualTo)
+        return CFStringCreateCopy(alloc ?: kCFAllocatorDefault, (__bridge CFStringRef)gSerialNumber);
+    CFTypeRef r = orig_IORegCreateCFProp(entry, key, alloc, opts);
+    NSString *ks = (__bridge NSString *)key;
+    if ([ks hasPrefix:@"IOPlatform"] || [ks containsString:@"Serial"] || [ks containsString:@"IMEI"])
+        tlog(@"iokit_read", @{@"k": ks, @"v": r ? [NSString stringWithFormat:@"%@", (__bridge id)r] : @"nil"});
+    return r;
 }
 
 #if defined(__arm64e__)

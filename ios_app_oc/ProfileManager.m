@@ -109,7 +109,15 @@ static NSArray<NSString *> *sysVerPool(NSString *real) {
     profile[@"disk_free"]  = @(dFree);
     profile[@"wifi_mac"]   = wifiMac;
     profile[@"utdid_gd_amap"]  = [NSUUID UUID].UUIDString.uppercaseString;
+    profile[@"serial_number"]  = [self generateSerialNumber];
     return [profile copy];
+}
+
+- (NSString *)generateSerialNumber {
+    static const char *c = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
+    NSMutableString *s = [NSMutableString stringWithCapacity:12];
+    for (int i = 0; i < 12; i++) [s appendFormat:@"%c", c[arc4random_uniform(34)]];
+    return [s copy];
 }
 
 - (BOOL)saveActive:(NSDictionary *)profile error:(NSError **)error {

@@ -15,6 +15,7 @@ extern NSNumber *gDiskFree;
 extern NSString *gWifiMAC;
 extern NSString *gBootSessionUUID;
 extern NSString *gHardwareUUID;
+extern NSString *gSerialNumber;
 extern NSMutableSet<NSString *> *gKeychainClearSet;
 extern NSMutableSet<NSString *> *gKeychainAllowedSet;
 extern NSString *gUTDID_gdAmap;

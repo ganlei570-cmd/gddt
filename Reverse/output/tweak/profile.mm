@@ -16,6 +16,7 @@ NSNumber *gDiskFree  = nil;
 NSString *gWifiMAC          = nil;
 NSString *gBootSessionUUID  = nil;
 NSString *gHardwareUUID     = nil;
+NSString *gSerialNumber     = nil;
 NSMutableSet<NSString *> *gKeychainClearSet;
 NSMutableSet<NSString *> *gKeychainAllowedSet;
 NSString *gUTDID_gdAmap  = nil;
@@ -60,6 +61,13 @@ static NSDictionary *diskProfile(void) {
     NSData *d = [NSData dataWithContentsOfFile:path];
     if (!d) return nil;
     return [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+}
+
+static NSString *randomSerial(void) {
+    static const char *c = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789";
+    NSMutableString *s = [NSMutableString stringWithCapacity:12];
+    for (int i = 0; i < 12; i++) [s appendFormat:@"%c", c[arc4random_uniform(34)]];
+    return [s copy];
 }
 
 static NSMutableSet<NSString *> *kcSetFromDict(NSDictionary *kc) {
@@ -190,6 +198,15 @@ void loadProfile(void) {
     if (p[@"wifi_mac"])          gWifiMAC          = p[@"wifi_mac"];
     if (p[@"boot_session_uuid"]) gBootSessionUUID  = p[@"boot_session_uuid"];
     if (p[@"hardware_uuid"])     gHardwareUUID     = p[@"hardware_uuid"];
+    if (p[@"serial_number"]) {
+        gSerialNumber = p[@"serial_number"];
+    } else {
+        gSerialNumber = randomSerial();
+        NSMutableDictionary *mp = [p mutableCopy];
+        mp[@"serial_number"] = gSerialNumber;
+        NSData *ud = [NSJSONSerialization dataWithJSONObject:mp options:0 error:nil];
+        [ud writeToFile:findActiveProfilePath() atomically:YES];
+    }
     if (p[@"keychain"])          gKeychainClearSet = kcSetFromDict(p[@"keychain"]);
     if (p[@"utdid_gd_amap"])  gUTDID_gdAmap  = p[@"utdid_gd_amap"];
     if (p[@"utdid_adiu_key"]) gUTDID_adiuKey = p[@"utdid_adiu_key"];

@@ -248,54 +248,29 @@ static id hook_JSONObjectWithData(id self, SEL cmd, NSData *data, NSJSONReadingO
     return result;
 }
 
-// ── DTHbalSe 风控上报：透传 amapstream/upload，把响应 "data":false → "data":true ──
-@interface AmapShieldProtocol : NSURLProtocol <NSURLSessionDataDelegate>
-@property NSMutableData *buf;
-@property NSURLSessionDataTask *fwd;
-@property NSURLSession *sess;
+// ── ALBB shield 拦截：不转发服务器，直接返回 data:true（阻止风控数据上报）────
+@interface AmapShieldProtocol : NSURLProtocol
 @end
 @implementation AmapShieldProtocol
 + (BOOL)canInitWithRequest:(NSURLRequest *)r {
     if ([NSURLProtocol propertyForKey:@"_asp" inRequest:r]) return NO;
     NSString *p = r.URL.path;
-    return p && ([p containsString:@"/shield/amapstream/upload"] || [p containsString:@"/shield/nest/updatable/v1/log"]);
+    return p && ([p containsString:@"/shield/amapstream/upload"]
+              || [p containsString:@"/shield/nest/updatable/v1/log"]
+              || [p containsString:@"/shield/alc/collect"]);
 }
 + (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)r { return r; }
 - (void)startLoading {
-    NSData *reqBody = self.request.HTTPBody;
-    if (reqBody.length > 0) {
-        NSString *s = [[NSString alloc] initWithData:reqBody encoding:NSUTF8StringEncoding];
-        tlog(@"shield_req", @{@"path": self.request.URL.path ?: @"",
-                               @"s": s ? (s.length > 400 ? [s substringToIndex:400] : s) : @"[binary]"});
-    }
-    NSMutableURLRequest *mr = [self.request mutableCopy];
-    [NSURLProtocol setProperty:@1 forKey:@"_asp" inRequest:mr];
-    NSURLSessionConfiguration *c = [NSURLSessionConfiguration ephemeralSessionConfiguration];
-    c.protocolClasses = @[];
-    self.buf = [NSMutableData data];
-    self.sess = [NSURLSession sessionWithConfiguration:c delegate:self delegateQueue:nil];
-    self.fwd = [self.sess dataTaskWithRequest:mr];
-    [self.fwd resume];
-}
-- (void)stopLoading { [self.fwd cancel]; [self.sess invalidateAndCancel]; }
-- (void)URLSession:(NSURLSession *)s dataTask:(NSURLSessionDataTask *)t didReceiveResponse:(NSURLResponse *)r completionHandler:(void(^)(NSURLSessionResponseDisposition))h {
-    [self.client URLProtocol:self didReceiveResponse:r cacheStoragePolicy:NSURLCacheStorageNotAllowed]; h(NSURLSessionResponseAllow);
-}
-- (void)URLSession:(NSURLSession *)s dataTask:(NSURLSessionDataTask *)t didReceiveData:(NSData *)d { [self.buf appendData:d]; }
-- (void)URLSession:(NSURLSession *)s task:(NSURLSessionTask *)t didCompleteWithError:(NSError *)e {
-    NSData *out = self.buf;
-    if (!e) {
-        NSString *str = [[NSString alloc] initWithData:out encoding:NSUTF8StringEncoding];
-        if (str && [str containsString:@"\"data\":false"]) {
-            NSData *d = [[str stringByReplacingOccurrencesOfString:@"\"data\":false" withString:@"\"data\":true"] dataUsingEncoding:NSUTF8StringEncoding];
-            if (d) { out = d; tlog(@"shield_patched_http", nil); }
-        }
-    }
-    [s invalidateAndCancel];
-    if (e) { [self.client URLProtocol:self didFailWithError:e]; return; }
-    [self.client URLProtocol:self didLoadData:out];
+    tlog(@"shield_blocked", @{@"path": self.request.URL.path ?: @""});
+    NSHTTPURLResponse *resp = [[NSHTTPURLResponse alloc]
+        initWithURL:self.request.URL statusCode:200
+        HTTPVersion:@"HTTP/1.1" headerFields:@{@"Content-Type": @"application/json"}];
+    NSData *body = [@"{\"data\":true}" dataUsingEncoding:NSUTF8StringEncoding];
+    [self.client URLProtocol:self didReceiveResponse:resp cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    [self.client URLProtocol:self didLoadData:body];
     [self.client URLProtocolDidFinishLoading:self];
 }
+- (void)stopLoading {}
 @end
 
 static void injectShield(NSURLSessionConfiguration *c) {

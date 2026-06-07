@@ -283,6 +283,21 @@ static id (*orig_newSess)(id, SEL, NSURLSessionConfiguration *, id, NSOperationQ
 static id hook_newSess(id s, SEL c, NSURLSessionConfiguration *cfg, id d, NSOperationQueue *q) {
     injectShield(cfg); return orig_newSess(s, c, cfg, d, q);
 }
+static id (*orig_newSessNoDel)(id, SEL, NSURLSessionConfiguration *);
+static id hook_newSessNoDel(id s, SEL c, NSURLSessionConfiguration *cfg) {
+    injectShield(cfg); return orig_newSessNoDel(s, c, cfg);
+}
+
+// ── Task 级别拦截：阻止 ALBB risk 数据上传（session 级无效时的兜底）────────
+static void (*orig_task_resume)(id, SEL);
+static void hook_task_resume(id self, SEL cmd) {
+    NSString *path = ((NSURLSessionTask *)self).originalRequest.URL.path;
+    if (path && [path containsString:@"/shield/amapstream/upload"]) {
+        tlog(@"task_blocked", @{@"path": path});
+        return; // 不启动 task，ALBB 永远收不到响应（fire-and-forget 上传）
+    }
+    orig_task_resume(self, cmd);
+}
 
 static void (*orig_deleteCookie)(id, SEL, id);
 static void hook_deleteCookie(id self, SEL _cmd, id cookie) {
@@ -344,6 +359,19 @@ void installBypassHooks(void) {
         @selector(sessionWithConfiguration:delegate:delegateQueue:),
         (IMP)hook_newSess,
         (IMP *)&orig_newSess);
+    MSHookMessageEx(
+        object_getClass(NSClassFromString(@"NSURLSession")),
+        @selector(sessionWithConfiguration:),
+        (IMP)hook_newSessNoDel,
+        (IMP *)&orig_newSessNoDel);
+    // task 级兜底：method_setImplementation 覆盖基类 resume，不依赖 session 配置
+    {
+        Method m = class_getInstanceMethod(NSClassFromString(@"NSURLSessionTask"), @selector(resume));
+        if (m) {
+            orig_task_resume = (void (*)(id, SEL))method_getImplementation(m);
+            method_setImplementation(m, (IMP)hook_task_resume);
+        }
+    }
     installNetCaptureHooks();
     tlog(@"bypass_installed", nil);
 }

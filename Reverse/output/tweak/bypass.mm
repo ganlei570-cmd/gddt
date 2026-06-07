@@ -288,15 +288,32 @@ static id hook_newSessNoDel(id s, SEL c, NSURLSessionConfiguration *cfg) {
     injectShield(cfg); return orig_newSessNoDel(s, c, cfg);
 }
 
-// ── Task 级别拦截：阻止 ALBB risk 数据上传（session 级无效时的兜底）────────
+// ── Task 级别拦截（保留，对 csid= 类请求有效）───────────────────────────────
 static void (*orig_task_resume)(id, SEL);
 static void hook_task_resume(id self, SEL cmd) {
     NSString *path = ((NSURLSessionTask *)self).originalRequest.URL.path;
     if (path && [path containsString:@"/shield/amapstream/upload"]) {
         tlog(@"task_blocked", @{@"path": path});
-        return; // 不启动 task，ALBB 永远收不到响应（fire-and-forget 上传）
+        return;
     }
     orig_task_resume(self, cmd);
+}
+
+// ── SSLWrite 拦截：NWConnection/Network.framework 走 SecureTransport，
+//    NSURLProtocol 和 task hook 均无效；此处在 TLS 层直接丢弃 amapstream/upload ──
+#include <Security/SecureTransport.h>
+static OSStatus (*orig_SSLWrite)(SSLContextRef, const void*, size_t, size_t*);
+static OSStatus hook_SSLWrite(SSLContextRef ctx, const void *data, size_t dataLen, size_t *processed) {
+    if (data && dataLen > 4) {
+        const char *s = (const char *)data;
+        size_t check = dataLen < 300 ? dataLen : 300;
+        if (strnstr(s, "/shield/amapstream/upload", check)) {
+            if (processed) *processed = dataLen;
+            tlog(@"ssl_write_blocked", nil);
+            return noErr; // 让 ALBB 以为发送成功，服务端永远收不到数据
+        }
+    }
+    return orig_SSLWrite(ctx, data, dataLen, processed);
 }
 
 static void (*orig_deleteCookie)(id, SEL, id);
@@ -372,6 +389,7 @@ void installBypassHooks(void) {
             method_setImplementation(m, (IMP)hook_task_resume);
         }
     }
+    MH("SSLWrite", hook_SSLWrite, &orig_SSLWrite);
     installNetCaptureHooks();
     tlog(@"bypass_installed", nil);
 }
